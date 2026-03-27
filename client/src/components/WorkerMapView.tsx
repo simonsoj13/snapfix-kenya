@@ -1,11 +1,11 @@
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Star, Navigation } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { Worker } from "@shared/schema";
+import { getWorkerImage } from "@/lib/workerImages";
 
 // Fix for default marker icons in leaflet
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -64,7 +64,7 @@ export default function WorkerMapView({
               <div className="p-2 min-w-[200px]">
                 <div className="flex items-center gap-3 mb-2">
                   <Avatar className="w-12 h-12">
-                    <AvatarImage src={worker.profileImage} alt={worker.name} />
+                    <AvatarImage src={getWorkerImage(worker.specialty)} alt={worker.name} />
                     <AvatarFallback>{worker.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>

@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,30 +11,37 @@ import SearchPage from "@/pages/SearchPage";
 import RequestsPage from "@/pages/RequestsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import NotFound from "@/pages/not-found";
-import { useState } from "react";
+
+const TAB_ROUTES = {
+  home: "/",
+  search: "/search",
+  requests: "/requests",
+  profile: "/profile",
+} as const;
+
+type Tab = keyof typeof TAB_ROUTES;
+
+function getActiveTab(pathname: string): Tab {
+  if (pathname === "/search") return "search";
+  if (pathname === "/requests") return "requests";
+  if (pathname === "/profile") return "profile";
+  return "home";
+}
 
 function Router() {
-  const [activeTab, setActiveTab] = useState<"home" | "search" | "requests" | "profile">("home");
+  const [location, navigate] = useLocation();
+  const activeTab = getActiveTab(location);
 
-  const handleTabChange = (tab: "home" | "search" | "requests" | "profile") => {
-    setActiveTab(tab);
-    const routes = {
-      home: "/",
-      search: "/search",
-      requests: "/requests",
-      profile: "/profile",
-    };
-    window.location.hash = routes[tab];
+  const handleTabChange = (tab: Tab) => {
+    navigate(TAB_ROUTES[tab]);
   };
 
   return (
     <>
       <TopNav
-        onMenuClick={() => console.log("Menu clicked")}
-        onSearchClick={() => window.location.hash = "/search"}
-        onNotificationsClick={() => console.log("Notifications clicked")}
-        onProfileClick={() => window.location.hash = "/profile"}
-        notificationCount={2}
+        onSearchClick={() => navigate("/search")}
+        onProfileClick={() => navigate("/profile")}
+        notificationCount={0}
       />
       <Switch>
         <Route path="/" component={HomePage} />
@@ -48,7 +55,7 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
@@ -60,5 +67,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;

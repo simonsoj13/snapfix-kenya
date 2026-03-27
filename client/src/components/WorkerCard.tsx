@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Star, MapPin, CheckCircle2 } from "lucide-react";
+import { getWorkerImage } from "@/lib/workerImages";
 
 interface WorkerCardProps {
   id: string;
@@ -37,7 +38,7 @@ export default function WorkerCard({
     <Card className="p-6 flex flex-col gap-4" data-testid={`card-worker-${id}`}>
       <div className="flex items-start gap-4">
         <Avatar className="w-16 h-16">
-          <AvatarImage src={profileImage} alt={name} />
+          <AvatarImage src={getWorkerImage(specialty)} alt={name} />
           <AvatarFallback>{name.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
