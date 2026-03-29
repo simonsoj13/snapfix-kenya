@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Search, Menu, Bell } from "lucide-react";
+import { Search, Menu, Bell, LayoutDashboard } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface TopNavProps {
@@ -8,6 +8,7 @@ interface TopNavProps {
   onSearchClick?: () => void;
   onNotificationsClick?: () => void;
   onProfileClick?: () => void;
+  onAdminClick?: () => void;
   notificationCount?: number;
 }
 
@@ -16,6 +17,7 @@ export default function TopNav({
   onSearchClick,
   onNotificationsClick,
   onProfileClick,
+  onAdminClick,
   notificationCount = 0,
 }: TopNavProps) {
   return (
@@ -58,6 +60,15 @@ export default function TopNav({
               <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
             )}
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onAdminClick}
+            data-testid="button-admin"
+            title="Admin Dashboard"
+          >
+            <LayoutDashboard className="w-5 h-5" />
+          </Button>
           <ThemeToggle />
           <Avatar
             className="w-9 h-9 cursor-pointer"

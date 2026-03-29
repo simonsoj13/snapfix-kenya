@@ -5,9 +5,10 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   getWorker(id: string): Promise<Worker | undefined>;
   getAllWorkers(): Promise<Worker[]>;
+  updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined>;
   searchWorkers(filters: {
     specialty?: string;
     maxDistance?: number;
@@ -15,8 +16,9 @@ export interface IStorage {
     availableNow?: boolean;
     verified?: boolean;
   }): Promise<Worker[]>;
-  
+
   getJobRequest(id: string): Promise<JobRequest | undefined>;
+  getAllJobRequests(): Promise<JobRequest[]>;
   getJobRequestsByUser(userId: string): Promise<JobRequest[]>;
   createJobRequest(request: InsertJobRequest): Promise<JobRequest>;
   updateJobRequestStatus(id: string, status: string): Promise<JobRequest | undefined>;
@@ -171,6 +173,16 @@ export class MemStorage implements IStorage {
     return Array.from(this.workers.values());
   }
 
+  async updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined> {
+    const worker = this.workers.get(id);
+    if (worker) {
+      const updated = { ...worker, availableNow };
+      this.workers.set(id, updated);
+      return updated;
+    }
+    return undefined;
+  }
+
   async searchWorkers(filters: {
     specialty?: string;
     maxDistance?: number;
@@ -207,6 +219,10 @@ export class MemStorage implements IStorage {
 
   async getJobRequest(id: string): Promise<JobRequest | undefined> {
     return this.jobRequests.get(id);
+  }
+
+  async getAllJobRequests(): Promise<JobRequest[]> {
+    return Array.from(this.jobRequests.values());
   }
 
   async getJobRequestsByUser(userId: string): Promise<JobRequest[]> {

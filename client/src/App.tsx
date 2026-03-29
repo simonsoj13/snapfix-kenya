@@ -10,6 +10,7 @@ import HomePage from "@/pages/HomePage";
 import SearchPage from "@/pages/SearchPage";
 import RequestsPage from "@/pages/RequestsPage";
 import ProfilePage from "@/pages/ProfilePage";
+import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/not-found";
 
 const TAB_ROUTES = {
@@ -30,17 +31,25 @@ function getActiveTab(pathname: string): Tab {
 
 function Router() {
   const [location, navigate] = useLocation();
-  const activeTab = getActiveTab(location);
 
-  const handleTabChange = (tab: Tab) => {
-    navigate(TAB_ROUTES[tab]);
-  };
+  // Admin dashboard has its own full-screen layout
+  if (location === "/admin") {
+    return (
+      <Switch>
+        <Route path="/admin" component={AdminDashboard} />
+      </Switch>
+    );
+  }
+
+  const activeTab = getActiveTab(location);
+  const handleTabChange = (tab: Tab) => navigate(TAB_ROUTES[tab]);
 
   return (
     <>
       <TopNav
         onSearchClick={() => navigate("/search")}
         onProfileClick={() => navigate("/profile")}
+        onAdminClick={() => navigate("/admin")}
         notificationCount={0}
       />
       <Switch>

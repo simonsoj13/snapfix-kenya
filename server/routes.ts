@@ -116,6 +116,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Admin endpoints ────────────────────────────────────────────────────────
+
+  // Platform-wide stats
+  app.get("/api/admin/stats", async (_req, res) => {
+    try {
+      const workers = await storage.getAllWorkers();
+      const requests = await storage.getAllJobRequests();
+
+      const totalWorkers = workers.length;
+      const activeWorkers = workers.filter((w) => w.availableNow === 1).length;
+      const totalRequests = requests.length;
+      const pendingRequests = requests.filter((r) => r.status === "pending").length;
+      const completedRequests = requests.filter((r) => r.status === "completed").length;
+      const inProgressRequests = requests.filter((r) => r.status === "in-progress").length;
+      const cancelledRequests = requests.filter((r) => r.status === "cancelled").length;
+
+      const avgRating =
+        workers.reduce((sum, w) => sum + w.rating, 0) / (workers.length || 1);
+
+      // Mock revenue: completed jobs * average hourly rate * 2 hours
+      const avgRate = workers.reduce((s, w) => s + w.hourlyRate, 0) / (workers.length || 1);
+      const totalRevenue = completedRequests * avgRate * 2;
+
+      res.json({
+        totalWorkers,
+        activeWorkers,
+        totalRequests,
+        pendingRequests,
+        completedRequests,
+        inProgressRequests,
+        cancelledRequests,
+        avgRating: parseFloat(avgRating.toFixed(2)),
+        totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+        totalUsers: 42, // mock
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Requests volume over last 7 days (mock time-series)
+  app.get("/api/admin/requests-trend", async (_req, res) => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const data = days.map((day) => ({
+      day,
+      requests: Math.floor(Math.random() * 30) + 10,
+      completed: Math.floor(Math.random() * 20) + 5,
+      revenue: Math.floor(Math.random() * 2000) + 500,
+    }));
+    res.json(data);
+  });
+
+  // Category breakdown
+  app.get("/api/admin/category-breakdown", async (_req, res) => {
+    try {
+      const workers = await storage.getAllWorkers();
+      const counts: Record<string, number> = {};
+      workers.forEach((w) => {
+        counts[w.specialty] = (counts[w.specialty] || 0) + 1;
+      });
+      const data = Object.entries(counts).map(([name, value]) => ({ name, value }));
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch category breakdown" });
+    }
+  });
+
+  // All job requests (admin)
+  app.get("/api/admin/requests", async (_req, res) => {
+    try {
+      const requests = await storage.getAllJobRequests();
+      res.json(requests);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch requests" });
+    }
+  });
+
+  // All workers (admin)
+  app.get("/api/admin/workers", async (_req, res) => {
+    try {
+      const workers = await storage.getAllWorkers();
+      res.json(workers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch workers" });
+    }
+  });
+
+  // Toggle worker availability
+  app.patch("/api/admin/workers/:id/toggle-availability", async (req, res) => {
+    try {
+      const worker = await storage.getWorker(req.params.id);
+      if (!worker) return res.status(404).json({ error: "Worker not found" });
+      const updated = await storage.updateWorkerAvailability(
+        req.params.id,
+        worker.availableNow === 1 ? 0 : 1
+      );
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update worker" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
