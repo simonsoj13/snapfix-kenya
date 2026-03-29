@@ -15,6 +15,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import LoginPage from "@/pages/LoginPage";
 import BookingFlow from "@/pages/BookingFlow";
 import NotFound from "@/pages/not-found";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const TAB_ROUTES = {
   home: "/",
@@ -98,12 +99,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </ThemeProvider>
     </QueryClientProvider>
   );

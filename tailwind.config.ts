@@ -75,6 +75,10 @@ export default {
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
           border: "var(--sidebar-accent-border)"
         },
+        "fixit-orange": {
+          DEFAULT: "hsl(var(--fixit-orange) / <alpha-value>)",
+          foreground: "hsl(var(--fixit-orange-foreground) / <alpha-value>)",
+        },
         status: {
           online: "rgb(34 197 94)",
           away: "rgb(245 158 11)",

@@ -66,15 +66,15 @@ export default function WorkerCard({
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
           <span className="text-xl font-bold" data-testid={`text-rate-${id}`}>
-            ${hourlyRate}/hr
+            KES {hourlyRate.toLocaleString()}/hr
           </span>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="w-3 h-3" />
-            <span data-testid={`text-distance-${id}`}>{distance.toFixed(1)} mi away</span>
+            <span data-testid={`text-distance-${id}`}>{distance.toFixed(1)} km away</span>
           </div>
         </div>
         {availableNow && (
-          <Badge variant="secondary" data-testid={`badge-available-${id}`}>
+          <Badge className="bg-primary/10 text-primary border-0" data-testid={`badge-available-${id}`}>
             Available Now
           </Badge>
         )}

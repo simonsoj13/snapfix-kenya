@@ -5,23 +5,37 @@ import WorkerCard from "@/components/WorkerCard";
 import WorkerProfileModal from "@/components/WorkerProfileModal";
 import WorkerMapView from "@/components/WorkerMapView";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { getAllWorkers, searchWorkers } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
 import type { Worker } from "@shared/schema";
 import {
-  Wrench, Zap, Hammer, PaintBucket, Wind, Cpu, Map, LayoutGrid, Camera,
+  Wrench, Zap, Hammer, PaintBucket, Wind, Cpu, Map, LayoutGrid,
+  Camera, Package, Search, ShieldCheck, X, LocateFixed, Clock,
+  Paintbrush, FlameKindling,
 } from "lucide-react";
-import heroImage from "@assets/generated_images/Hero_section_skilled_workers_76d96d56.png";
 
 const categories = [
-  { icon: Wrench, name: "Plumbing" },
-  { icon: Zap, name: "Electrical" },
-  { icon: Hammer, name: "Welding" },
-  { icon: PaintBucket, name: "Carpentry" },
-  { icon: Wind, name: "HVAC" },
-  { icon: Cpu, name: "Appliance" },
+  { icon: Wrench,       name: "Plumbing" },
+  { icon: Zap,          name: "Electrical" },
+  { icon: Hammer,       name: "Welding" },
+  { icon: Paintbrush,   name: "Carpentry" },
+  { icon: Wind,         name: "HVAC" },
+  { icon: Cpu,          name: "Appliance" },
+  { icon: PaintBucket,  name: "Painting" },
+  { icon: FlameKindling, name: "Emergency" },
 ];
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good Morning";
+  if (h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
+type Filter = "female-safe" | "nearby" | "available";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -30,6 +44,8 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set());
 
   const { data: workers = [], isLoading: loadingWorkers } = useQuery<Worker[]>({
     queryKey: ["/api/workers/search", selectedCategory],
@@ -39,116 +55,189 @@ export default function HomePage() {
         : getAllWorkers(),
   });
 
+  const toggleFilter = (f: Filter) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      next.has(f) ? next.delete(f) : next.add(f);
+      return next;
+    });
+  };
+
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      {/* Hero */}
-      <div className="relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.70)), url(${heroImage})`,
-          }}
-        />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
-          <div className="text-center max-w-2xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Find Skilled Workers Near You
-            </h1>
-            <p className="text-xl text-white/85 mb-3">
-              Hi {user?.name?.split(" ")[0]} — what needs fixing today?
-            </p>
-            <p className="text-white/70 mb-10 text-sm">
-              Take a photo, get an instant AI quote, and book a verified professional in minutes.
-            </p>
-            <Button
-              size="lg"
-              className="gap-2 text-base px-8 py-6"
-              onClick={() => navigate("/book")}
-              data-testid="button-start-booking"
-            >
-              <Camera className="w-5 h-5" />
-              Book a Repair Now
-            </Button>
-          </div>
+
+      {/* ── Hero greeting banner ── */}
+      <div className="bg-primary px-4 pt-6 pb-8">
+        <p className="text-primary-foreground/80 text-sm font-medium mb-1">{getGreeting()},</p>
+        <h1 className="text-primary-foreground text-2xl font-bold mb-5">{firstName} — what needs fixing?</h1>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search for services..."
+            className="pl-9 rounded-full bg-background/95 border-0 shadow-md text-foreground placeholder:text-muted-foreground"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search"
+          />
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <h2 className="text-2xl font-semibold mb-6">Browse by Service</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {categories.map((category) => (
-            <ServiceCategoryCard
-              key={category.name}
-              icon={category.icon}
-              name={category.name}
-              isSelected={selectedCategory === category.name}
-              onClick={() =>
-                setSelectedCategory((prev) =>
-                  prev === category.name ? null : category.name
-                )
-              }
-            />
-          ))}
-        </div>
+      {/* ── Filter pills ── */}
+      <div className="px-4 -mt-3 flex gap-2 flex-wrap mb-2">
+        {(
+          [
+            { key: "female-safe" as Filter, label: "Female-Safe Workers Only", icon: ShieldCheck },
+            { key: "nearby" as Filter, label: "Nearby", icon: LocateFixed },
+            { key: "available" as Filter, label: "Available Now", icon: Clock },
+          ] as const
+        ).map(({ key, label, icon: Icon }) => {
+          const active = activeFilters.has(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleFilter(key)}
+              data-testid={`filter-${key}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover-elevate"
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+              {active && <X className="w-3 h-3 ml-0.5" />}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Workers */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-          <h2 className="text-2xl font-semibold">
-            {selectedCategory ? `${selectedCategory} Workers Nearby` : "Top Rated Workers Nearby"}
-          </h2>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "grid" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-              data-testid="button-grid-view"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === "map" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("map")}
-              data-testid="button-map-view"
-            >
-              <Map className="w-4 h-4" />
-            </Button>
-          </div>
+      <div className="px-4 space-y-6 pt-4">
+
+        {/* ── Big CTA buttons ── */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/book")}
+            data-testid="button-start-booking"
+            className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md hover-elevate active-elevate-2"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+              <Camera className="w-6 h-6" />
+            </div>
+            <span className="text-sm">Upload Photo</span>
+            <span className="text-xs font-normal opacity-80">AI-powered quote</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/book")}
+            data-testid="button-landlord-bundles"
+            style={{ backgroundColor: "hsl(var(--fixit-orange))", color: "hsl(var(--fixit-orange-foreground))" }}
+            className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl font-semibold shadow-md hover-elevate active-elevate-2"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+              <Package className="w-6 h-6" />
+            </div>
+            <span className="text-sm">Landlord Bundles</span>
+            <span className="text-xs font-normal opacity-80">Multi-repair deals</span>
+          </button>
         </div>
 
-        {loadingWorkers ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-64 rounded-lg bg-muted animate-pulse" />
-            ))}
+        {/* ── Service categories ── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold">Browse Services</h2>
+            {selectedCategory && (
+              <button
+                type="button"
+                className="text-xs text-primary flex items-center gap-1"
+                onClick={() => setSelectedCategory(null)}
+              >
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
           </div>
-        ) : viewMode === "map" ? (
-          <div className="h-[500px] rounded-lg overflow-hidden border">
-            <WorkerMapView
-              workers={workers}
-              onWorkerClick={(worker) => setSelectedWorker(worker)}
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {workers.map((worker) => (
-              <WorkerCard
-                key={worker.id}
-                {...worker}
-                verified={worker.verified === 1}
-                availableNow={worker.availableNow === 1}
-                onViewProfile={() => setSelectedWorker(worker)}
-                onRequest={() => navigate("/book")}
+          <div className="grid grid-cols-4 gap-2">
+            {categories.map((category) => (
+              <ServiceCategoryCard
+                key={category.name}
+                icon={category.icon}
+                name={category.name}
+                isSelected={selectedCategory === category.name}
+                onClick={() =>
+                  setSelectedCategory((prev) =>
+                    prev === category.name ? null : category.name
+                  )
+                }
               />
             ))}
           </div>
-        )}
+        </div>
+
+        {/* ── Workers section ── */}
+        <div>
+          <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+            <h2 className="text-base font-semibold">
+              {selectedCategory ? `${selectedCategory} Workers` : "Top Workers Nearby"}
+            </h2>
+            <div className="flex gap-1.5">
+              <Button
+                variant={viewMode === "grid" ? "default" : "outline"}
+                size="icon"
+                onClick={() => setViewMode("grid")}
+                data-testid="button-grid-view"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === "map" ? "default" : "outline"}
+                size="icon"
+                onClick={() => setViewMode("map")}
+                data-testid="button-map-view"
+              >
+                <Map className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {loadingWorkers ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-52 rounded-xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : viewMode === "map" ? (
+            <div className="h-80 rounded-xl overflow-hidden border">
+              <WorkerMapView
+                workers={workers}
+                onWorkerClick={(worker) => setSelectedWorker(worker)}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {workers.map((worker) => (
+                <WorkerCard
+                  key={worker.id}
+                  {...worker}
+                  verified={worker.verified === 1}
+                  availableNow={worker.availableNow === 1}
+                  onViewProfile={() => setSelectedWorker(worker)}
+                  onRequest={() => navigate("/book")}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
-      {/* Worker Profile Modal (view only from home) */}
+      {/* Worker Profile Modal */}
       <WorkerProfileModal
         worker={selectedWorker}
         open={!!selectedWorker}

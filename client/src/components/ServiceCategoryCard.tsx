@@ -1,5 +1,4 @@
-import { Card } from "@/components/ui/card";
-import { LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 interface ServiceCategoryCardProps {
   icon: LucideIcon;
@@ -15,15 +14,22 @@ export default function ServiceCategoryCard({
   isSelected = false,
 }: ServiceCategoryCardProps) {
   return (
-    <Card
-      className={`p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover-elevate active-elevate-2 ${
-        isSelected ? "border-primary" : ""
-      }`}
+    <button
+      type="button"
       onClick={onClick}
       data-testid={`card-category-${name.toLowerCase().replace(/\s+/g, "-")}`}
+      className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl transition-all hover-elevate active-elevate-2 cursor-pointer w-full aspect-square
+        ${isSelected
+          ? "bg-primary text-primary-foreground shadow-md"
+          : "bg-white dark:bg-card border border-border text-foreground"
+        }`}
     >
-      <Icon className="w-12 h-12 text-primary" />
-      <span className="text-sm font-medium text-center">{name}</span>
-    </Card>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-white/20" : "bg-primary/10"}`}>
+        <Icon className={`w-5 h-5 ${isSelected ? "text-primary-foreground" : "text-primary"}`} />
+      </div>
+      <span className={`text-xs font-medium text-center leading-tight ${isSelected ? "text-primary-foreground" : "text-foreground"}`}>
+        {name}
+      </span>
+    </button>
   );
 }
