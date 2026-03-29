@@ -1,117 +1,102 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 import {
-  User,
-  MapPin,
-  Phone,
-  Mail,
-  Bell,
-  Shield,
-  CreditCard,
-  LogOut,
+  User, Phone, Mail, Bell, Shield, CreditCard, LogOut, HardHat,
 } from "lucide-react";
 
 export default function ProfilePage() {
+  const { user, logout } = useAuth();
+  const [_, navigate] = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  if (!user) return null;
+
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        <h1 className="text-2xl font-semibold mb-6">Profile</h1>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <h1 className="text-2xl font-semibold">Profile</h1>
 
         {/* Profile Header */}
-        <Card className="p-6 mb-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <Avatar className="w-24 h-24">
-              <AvatarImage src="" alt="User" />
-              <AvatarFallback className="text-2xl">JD</AvatarFallback>
+        <Card className="p-6">
+          <div className="flex items-center gap-5">
+            <Avatar className="w-20 h-20">
+              <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
+                {user.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
             </Avatar>
-            <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-xl font-semibold mb-1">John Doe</h2>
-              <p className="text-muted-foreground mb-4">john.doe@example.com</p>
-              <Button variant="outline" size="sm" data-testid="button-edit-profile">
-                Edit Profile
-              </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <h2 className="text-xl font-bold truncate">{user.name}</h2>
+                <Badge variant="secondary" className="flex-shrink-0">
+                  {user.role === "worker" ? (
+                    <><HardHat className="w-3 h-3 mr-1" />Worker</>
+                  ) : (
+                    <><User className="w-3 h-3 mr-1" />Customer</>
+                  )}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <p className="text-sm text-muted-foreground">{user.phone}</p>
             </div>
           </div>
         </Card>
 
-        {/* Personal Information */}
-        <Card className="p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Personal Information
+        {/* Account info */}
+        <Card className="p-6 space-y-4">
+          <h3 className="font-semibold flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Account Information
           </h3>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" defaultValue="John Doe" data-testid="input-name" />
+          <Separator />
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center gap-3">
+              <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground w-20">Name</span>
+              <span className="font-medium">{user.name}</span>
             </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                defaultValue="john.doe@example.com"
-                data-testid="input-email"
-              />
+            <div className="flex items-center gap-3">
+              <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground w-20">Email</span>
+              <span className="font-medium">{user.email}</span>
             </div>
-            <div>
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                defaultValue="+1 (555) 123-4567"
-                data-testid="input-phone"
-              />
-            </div>
-            <div>
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                defaultValue="123 Main St, New York, NY 10001"
-                data-testid="input-address"
-              />
+            <div className="flex items-center gap-3">
+              <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground w-20">Phone</span>
+              <span className="font-medium">{user.phone}</span>
             </div>
           </div>
         </Card>
 
         {/* Settings */}
-        <Card className="p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Settings</h3>
-          <div className="space-y-4">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3"
-              data-testid="button-notifications"
-            >
-              <Bell className="w-5 h-5" />
-              Notification Preferences
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3"
-              data-testid="button-payment"
-            >
-              <CreditCard className="w-5 h-5" />
-              Payment Methods
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3"
-              data-testid="button-privacy"
-            >
-              <Shield className="w-5 h-5" />
-              Privacy & Security
-            </Button>
-          </div>
+        <Card className="p-6 space-y-1">
+          <h3 className="font-semibold mb-3">Settings</h3>
+          <Button variant="ghost" className="w-full justify-start gap-3" data-testid="button-notifications">
+            <Bell className="w-5 h-5" />
+            Notification Preferences
+          </Button>
+          <Button variant="ghost" className="w-full justify-start gap-3" data-testid="button-payment">
+            <CreditCard className="w-5 h-5" />
+            Payment Methods
+          </Button>
+          <Button variant="ghost" className="w-full justify-start gap-3" data-testid="button-privacy">
+            <Shield className="w-5 h-5" />
+            Privacy &amp; Security
+          </Button>
         </Card>
 
-        {/* Logout */}
         <Button
           variant="destructive"
           className="w-full gap-2"
+          onClick={handleLogout}
           data-testid="button-logout"
         >
           <LogOut className="w-5 h-5" />

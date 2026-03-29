@@ -1,9 +1,14 @@
-import { type User, type InsertUser, type Worker, type InsertWorker, type JobRequest, type InsertJobRequest } from "@shared/schema";
+import {
+  type User, type InsertUser,
+  type Worker, type InsertWorker,
+  type JobRequest, type InsertJobRequest,
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByPhone(phone: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
   getWorker(id: string): Promise<Worker | undefined>;
@@ -22,22 +27,20 @@ export interface IStorage {
   getJobRequestsByUser(userId: string): Promise<JobRequest[]>;
   createJobRequest(request: InsertJobRequest): Promise<JobRequest>;
   updateJobRequestStatus(id: string, status: string): Promise<JobRequest | undefined>;
+  updateJobRequest(id: string, updates: Partial<JobRequest>): Promise<JobRequest | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private workers: Map<string, Worker>;
-  private jobRequests: Map<string, JobRequest>;
+  private users: Map<string, User> = new Map();
+  private workers: Map<string, Worker> = new Map();
+  private jobRequests: Map<string, JobRequest> = new Map();
 
   constructor() {
-    this.users = new Map();
-    this.workers = new Map();
-    this.jobRequests = new Map();
     this.seedWorkers();
   }
 
   private seedWorkers() {
-    const mockWorkers: InsertWorker[] = [
+    const mockWorkers: Array<InsertWorker & { phone: string; email: string }> = [
       {
         name: "John Smith",
         specialty: "Plumbing",
@@ -45,14 +48,16 @@ export class MemStorage implements IStorage {
         rating: 4.9,
         reviewCount: 127,
         distance: 2.3,
-        location: "Brooklyn, NY",
-        bio: "Master plumber with 15 years of experience. Specializing in residential and commercial plumbing repairs, installations, and emergency services.",
+        location: "Nairobi CBD",
+        bio: "Master plumber with 15 years of experience. Specialising in residential and commercial plumbing repairs, installations, and emergency services.",
         yearsExperience: 15,
         jobsCompleted: 450,
         responseTime: "< 30 min",
         verified: 1,
-        profileImage: "/api/placeholder-profile-1.jpg",
+        profileImage: "",
         availableNow: 1,
+        phone: "+254712345001",
+        email: "john.smith@fixit.ke",
       },
       {
         name: "Sarah Johnson",
@@ -61,14 +66,16 @@ export class MemStorage implements IStorage {
         rating: 4.8,
         reviewCount: 94,
         distance: 3.1,
-        location: "Queens, NY",
-        bio: "Licensed electrician specializing in residential electrical work, panel upgrades, and home automation systems.",
+        location: "Westlands",
+        bio: "Licensed electrician specialising in residential electrical work, panel upgrades, and home automation systems.",
         yearsExperience: 12,
         jobsCompleted: 380,
         responseTime: "< 1 hour",
         verified: 1,
-        profileImage: "/api/placeholder-profile-2.jpg",
+        profileImage: "",
         availableNow: 0,
+        phone: "+254712345002",
+        email: "sarah.j@fixit.ke",
       },
       {
         name: "Mike Chen",
@@ -77,14 +84,16 @@ export class MemStorage implements IStorage {
         rating: 4.7,
         reviewCount: 86,
         distance: 4.5,
-        location: "Manhattan, NY",
+        location: "Industrial Area",
         bio: "Certified welder with expertise in structural welding, custom metal fabrication, and repair work.",
         yearsExperience: 10,
         jobsCompleted: 320,
         responseTime: "< 45 min",
         verified: 1,
-        profileImage: "/api/placeholder-profile-3.jpg",
+        profileImage: "",
         availableNow: 1,
+        phone: "+254712345003",
+        email: "mike.c@fixit.ke",
       },
       {
         name: "David Martinez",
@@ -93,14 +102,16 @@ export class MemStorage implements IStorage {
         rating: 4.9,
         reviewCount: 112,
         distance: 1.8,
-        location: "Brooklyn, NY",
-        bio: "Master carpenter specializing in custom woodwork, furniture repair, and home renovations.",
+        location: "Karen",
+        bio: "Master carpenter specialising in custom woodwork, furniture repair, and home renovations.",
         yearsExperience: 18,
         jobsCompleted: 520,
         responseTime: "< 20 min",
         verified: 1,
-        profileImage: "/api/placeholder-profile-4.jpg",
+        profileImage: "",
         availableNow: 0,
+        phone: "+254712345004",
+        email: "david.m@fixit.ke",
       },
       {
         name: "Emily Rodriguez",
@@ -109,14 +120,16 @@ export class MemStorage implements IStorage {
         rating: 4.8,
         reviewCount: 103,
         distance: 3.7,
-        location: "Bronx, NY",
+        location: "Kilimani",
         bio: "HVAC technician with expertise in heating and cooling system installation, repair, and maintenance.",
         yearsExperience: 14,
         jobsCompleted: 410,
         responseTime: "< 1 hour",
         verified: 1,
-        profileImage: "/api/placeholder-profile-5.jpg",
+        profileImage: "",
         availableNow: 1,
+        phone: "+254712345005",
+        email: "emily.r@fixit.ke",
       },
       {
         name: "Robert Kim",
@@ -125,37 +138,35 @@ export class MemStorage implements IStorage {
         rating: 4.7,
         reviewCount: 89,
         distance: 2.9,
-        location: "Queens, NY",
+        location: "Lavington",
         bio: "Appliance repair specialist for all major brands. Quick diagnosis and reliable repairs.",
         yearsExperience: 11,
         jobsCompleted: 370,
         responseTime: "< 45 min",
         verified: 1,
-        profileImage: "/api/placeholder-profile-6.jpg",
+        profileImage: "",
         availableNow: 1,
+        phone: "+254712345006",
+        email: "robert.k@fixit.ke",
       },
     ];
 
-    mockWorkers.forEach((worker) => {
+    mockWorkers.forEach((w) => {
       const id = randomUUID();
-      const fullWorker: Worker = {
-        ...worker,
-        id,
-        verified: worker.verified ?? 0,
-        availableNow: worker.availableNow ?? 0,
-      };
-      this.workers.set(id, fullWorker);
+      this.workers.set(id, { ...w, id, verified: w.verified ?? 0, availableNow: w.availableNow ?? 0 });
     });
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  // ── Users ────────────────────────────────────────────────────────────────────
+
+  async getUserById(id: string) { return this.users.get(id); }
+
+  async getUserByEmail(email: string) {
+    return Array.from(this.users.values()).find((u) => u.email.toLowerCase() === email.toLowerCase());
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getUserByPhone(phone: string) {
+    return Array.from(this.users.values()).find((u) => u.phone === phone);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -165,22 +176,18 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async getWorker(id: string): Promise<Worker | undefined> {
-    return this.workers.get(id);
-  }
+  // ── Workers ──────────────────────────────────────────────────────────────────
 
-  async getAllWorkers(): Promise<Worker[]> {
-    return Array.from(this.workers.values());
-  }
+  async getWorker(id: string) { return this.workers.get(id); }
 
-  async updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined> {
-    const worker = this.workers.get(id);
-    if (worker) {
-      const updated = { ...worker, availableNow };
-      this.workers.set(id, updated);
-      return updated;
-    }
-    return undefined;
+  async getAllWorkers() { return Array.from(this.workers.values()); }
+
+  async updateWorkerAvailability(id: string, availableNow: number) {
+    const w = this.workers.get(id);
+    if (!w) return undefined;
+    const updated = { ...w, availableNow };
+    this.workers.set(id, updated);
+    return updated;
   }
 
   async searchWorkers(filters: {
@@ -189,69 +196,59 @@ export class MemStorage implements IStorage {
     minRating?: number;
     availableNow?: boolean;
     verified?: boolean;
-  }): Promise<Worker[]> {
-    let workers = Array.from(this.workers.values());
-
-    if (filters.specialty) {
-      workers = workers.filter((w) => 
-        w.specialty.toLowerCase() === filters.specialty!.toLowerCase()
-      );
-    }
-
-    if (filters.maxDistance !== undefined) {
-      workers = workers.filter((w) => w.distance <= filters.maxDistance!);
-    }
-
-    if (filters.minRating !== undefined) {
-      workers = workers.filter((w) => w.rating >= filters.minRating!);
-    }
-
-    if (filters.availableNow) {
-      workers = workers.filter((w) => w.availableNow === 1);
-    }
-
-    if (filters.verified) {
-      workers = workers.filter((w) => w.verified === 1);
-    }
-
-    return workers;
+  }) {
+    let list = Array.from(this.workers.values());
+    if (filters.specialty)
+      list = list.filter((w) => w.specialty.toLowerCase() === filters.specialty!.toLowerCase());
+    if (filters.maxDistance !== undefined)
+      list = list.filter((w) => w.distance <= filters.maxDistance!);
+    if (filters.minRating !== undefined)
+      list = list.filter((w) => w.rating >= filters.minRating!);
+    if (filters.availableNow)
+      list = list.filter((w) => w.availableNow === 1);
+    if (filters.verified)
+      list = list.filter((w) => w.verified === 1);
+    return list;
   }
 
-  async getJobRequest(id: string): Promise<JobRequest | undefined> {
-    return this.jobRequests.get(id);
+  // ── Job Requests ─────────────────────────────────────────────────────────────
+
+  async getJobRequest(id: string) { return this.jobRequests.get(id); }
+
+  async getAllJobRequests() { return Array.from(this.jobRequests.values()); }
+
+  async getJobRequestsByUser(userId: string) {
+    return Array.from(this.jobRequests.values()).filter((r) => r.userId === userId);
   }
 
-  async getAllJobRequests(): Promise<JobRequest[]> {
-    return Array.from(this.jobRequests.values());
-  }
-
-  async getJobRequestsByUser(userId: string): Promise<JobRequest[]> {
-    return Array.from(this.jobRequests.values()).filter(
-      (req) => req.userId === userId
-    );
-  }
-
-  async createJobRequest(insertRequest: InsertJobRequest): Promise<JobRequest> {
+  async createJobRequest(req: InsertJobRequest): Promise<JobRequest> {
     const id = randomUUID();
-    const request: JobRequest = {
-      ...insertRequest,
+    const full: JobRequest = {
+      ...req,
       id,
-      workerId: insertRequest.workerId ?? null,
-      preferredDate: insertRequest.preferredDate ?? null,
-      budget: insertRequest.budget ?? null,
+      workerId: req.workerId ?? null,
+      preferredDate: req.preferredDate ?? null,
+      budget: req.budget ?? null,
+      quotedAmount: req.quotedAmount ?? null,
+      depositAmount: req.depositAmount ?? null,
+      isNow: req.isNow ?? 0,
+      area: req.area ?? "",
+      workerContactShown: req.workerContactShown ?? 0,
     };
-    this.jobRequests.set(id, request);
-    return request;
+    this.jobRequests.set(id, full);
+    return full;
   }
 
-  async updateJobRequestStatus(id: string, status: string): Promise<JobRequest | undefined> {
-    const request = this.jobRequests.get(id);
-    if (request) {
-      const updated = { ...request, status };
-      this.jobRequests.set(id, updated);
-      return updated;
-    }
-    return undefined;
+  async updateJobRequestStatus(id: string, status: string) {
+    return this.updateJobRequest(id, { status });
+  }
+
+  async updateJobRequest(id: string, updates: Partial<JobRequest>) {
+    const req = this.jobRequests.get(id);
+    if (!req) return undefined;
+    const updated = { ...req, ...updates };
+    this.jobRequests.set(id, updated);
+    return updated;
   }
 }
 

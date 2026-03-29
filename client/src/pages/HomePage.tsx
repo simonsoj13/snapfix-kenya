@@ -1,24 +1,16 @@
-import { useState, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PhotoUploadCard from "@/components/PhotoUploadCard";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import ServiceCategoryCard from "@/components/ServiceCategoryCard";
 import WorkerCard from "@/components/WorkerCard";
-import AIAnalysisCard from "@/components/AIAnalysisCard";
 import WorkerProfileModal from "@/components/WorkerProfileModal";
 import WorkerMapView from "@/components/WorkerMapView";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { analyzeImage, getAllWorkers, searchWorkers, createJobRequest } from "@/lib/api";
+import { getAllWorkers, searchWorkers } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 import type { Worker } from "@shared/schema";
 import {
-  Wrench,
-  Zap,
-  Hammer,
-  PaintBucket,
-  Wind,
-  Cpu,
-  Map,
-  LayoutGrid,
+  Wrench, Zap, Hammer, PaintBucket, Wind, Cpu, Map, LayoutGrid, Camera,
 } from "lucide-react";
 import heroImage from "@assets/generated_images/Hero_section_skilled_workers_76d96d56.png";
 
@@ -31,23 +23,14 @@ const categories = [
   { icon: Cpu, name: "Appliance" },
 ];
 
-const DEMO_USER_ID = "demo-user-1";
-
 export default function HomePage() {
-  const { toast } = useToast();
-  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [_, navigate] = useLocation();
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysisDescription, setAnalysisDescription] = useState("");
-  const [analysisCategory, setAnalysisCategory] = useState("General");
-  const [analysisConfidence, setAnalysisConfidence] = useState(95);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
 
-  // Fetch workers - filtered by category if selected
   const { data: workers = [], isLoading: loadingWorkers } = useQuery<Worker[]>({
     queryKey: ["/api/workers/search", selectedCategory],
     queryFn: () =>
@@ -56,106 +39,36 @@ export default function HomePage() {
         : getAllWorkers(),
   });
 
-  const createRequestMutation = useMutation({
-    mutationFn: createJobRequest,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/job-requests/user", DEMO_USER_ID] });
-      toast({ title: "Request sent!", description: "The worker will respond shortly." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to submit request.", variant: "destructive" });
-    },
-  });
-
-  const handleFileSelect = useCallback(async (file: File) => {
-    setUploadedFile(file);
-    setIsAnalyzing(true);
-    setShowAnalysis(true);
-    try {
-      const result = await analyzeImage(file);
-      setAnalysisDescription(result.description);
-      setAnalysisCategory(result.category);
-      setAnalysisConfidence(result.confidence);
-      // Auto-select the detected category
-      setSelectedCategory(result.category);
-    } catch (err: any) {
-      // Fallback if no API key yet
-      setAnalysisDescription(
-        "Repair issue detected. Please edit this description to provide more details about what needs to be fixed."
-      );
-      setAnalysisCategory("General");
-      toast({
-        title: "AI Analysis",
-        description: err.message?.includes("not configured")
-          ? "Add an OpenAI API key to enable AI analysis. Showing placeholder for now."
-          : "Could not analyze image. Please describe the issue manually.",
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [toast]);
-
-  const handleFindWorkers = () => {
-    setShowAnalysis(false);
-    setUploadedFile(null);
-    window.scrollTo({ top: 600, behavior: "smooth" });
-  };
-
-  const handleRequestSubmit = async (
-    workerId: string,
-    description: string,
-    location: string,
-    preferredDate: string
-  ) => {
-    await createRequestMutation.mutateAsync({
-      userId: DEMO_USER_ID,
-      workerId,
-      imageUrl: uploadedFile ? URL.createObjectURL(uploadedFile) : "",
-      description,
-      category: analysisCategory,
-      status: "pending",
-      location,
-      preferredDate: preferredDate || null,
-      budget: null,
-    });
-  };
-
-  const imageUrl = uploadedFile ? URL.createObjectURL(uploadedFile) : "";
-
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      {/* Hero Section */}
+      {/* Hero */}
       <div className="relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)), url(${heroImage})`,
+            backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.70)), url(${heroImage})`,
           }}
         />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
-          <div className="text-center mb-12">
+          <div className="text-center max-w-2xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Find Skilled Workers Near You
             </h1>
-            <p className="text-xl text-white/90 max-w-2xl mx-auto">
-              Take a photo of your repair need and get matched with qualified professionals instantly
+            <p className="text-xl text-white/85 mb-3">
+              Hi {user?.name?.split(" ")[0]} — what needs fixing today?
             </p>
-          </div>
-
-          <div className="max-w-2xl mx-auto">
-            {showAnalysis && uploadedFile ? (
-              <AIAnalysisCard
-                imageUrl={imageUrl}
-                description={analysisDescription}
-                category={analysisCategory}
-                confidence={analysisConfidence}
-                isLoading={isAnalyzing}
-                onDescriptionChange={setAnalysisDescription}
-                onFindWorkers={handleFindWorkers}
-              />
-            ) : (
-              <PhotoUploadCard onFileSelect={handleFileSelect} />
-            )}
+            <p className="text-white/70 mb-10 text-sm">
+              Take a photo, get an instant AI quote, and book a verified professional in minutes.
+            </p>
+            <Button
+              size="lg"
+              className="gap-2 text-base px-8 py-6"
+              onClick={() => navigate("/book")}
+              data-testid="button-start-booking"
+            >
+              <Camera className="w-5 h-5" />
+              Book a Repair Now
+            </Button>
           </div>
         </div>
       </div>
@@ -180,7 +93,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Workers Section */}
+      {/* Workers */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <h2 className="text-2xl font-semibold">
@@ -228,20 +141,18 @@ export default function HomePage() {
                 verified={worker.verified === 1}
                 availableNow={worker.availableNow === 1}
                 onViewProfile={() => setSelectedWorker(worker)}
-                onRequest={() => setSelectedWorker(worker)}
+                onRequest={() => navigate("/book")}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Worker Profile Modal */}
+      {/* Worker Profile Modal (view only from home) */}
       <WorkerProfileModal
         worker={selectedWorker}
         open={!!selectedWorker}
         onClose={() => setSelectedWorker(null)}
-        onRequestSubmit={handleRequestSubmit}
-        prefillDescription={analysisDescription}
       />
     </div>
   );

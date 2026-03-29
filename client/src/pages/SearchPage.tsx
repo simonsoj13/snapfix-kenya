@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import SearchBar from "@/components/SearchBar";
 import WorkerCard from "@/components/WorkerCard";
 import ServiceCategoryCard from "@/components/ServiceCategoryCard";
@@ -10,20 +10,14 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
-import { searchWorkers, createJobRequest } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
+import { searchWorkers } from "@/lib/api";
 import type { Worker } from "@shared/schema";
-import {
-  Wrench, Zap, Hammer, PaintBucket, Wind, Cpu,
-  Map, LayoutGrid, SlidersHorizontal,
-} from "lucide-react";
+import { Wrench, Zap, Hammer, PaintBucket, Wind, Cpu, Map, LayoutGrid } from "lucide-react";
 
 const categories = [
   { icon: Wrench, name: "Plumbing" },
@@ -34,11 +28,9 @@ const categories = [
   { icon: Cpu, name: "Appliance" },
 ];
 
-const DEMO_USER_ID = "demo-user-1";
-
 export default function SearchPage() {
-  const { toast } = useToast();
-  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [_, navigate] = useLocation();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -51,14 +43,7 @@ export default function SearchPage() {
   const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
 
   const { data: workers = [], isLoading } = useQuery<Worker[]>({
-    queryKey: [
-      "/api/workers/search",
-      selectedCategories,
-      priceRange,
-      distanceRange,
-      showAvailableOnly,
-      showVerifiedOnly,
-    ],
+    queryKey: ["/api/workers/search", selectedCategories, priceRange, distanceRange, showAvailableOnly, showVerifiedOnly],
     queryFn: () =>
       searchWorkers({
         specialty: selectedCategories.length === 1 ? selectedCategories[0] : undefined,
@@ -68,26 +53,13 @@ export default function SearchPage() {
       }),
   });
 
-  const createRequestMutation = useMutation({
-    mutationFn: createJobRequest,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/job-requests/user", DEMO_USER_ID] });
-      toast({ title: "Request sent!", description: "The worker will respond shortly." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to submit request.", variant: "destructive" });
-    },
-  });
-
-  // Client-side filter by search query and price range
   const filteredWorkers = workers.filter((w) => {
     const matchesQuery =
       !searchQuery ||
       w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       w.specialty.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesPrice = w.hourlyRate >= priceRange[0] && w.hourlyRate <= priceRange[1];
-    const matchesCategory =
-      selectedCategories.length === 0 || selectedCategories.includes(w.specialty);
+    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(w.specialty);
     return matchesQuery && matchesPrice && matchesCategory;
   });
 
@@ -104,25 +76,6 @@ export default function SearchPage() {
     setShowAvailableOnly(false);
     setShowVerifiedOnly(false);
     setSearchQuery("");
-  };
-
-  const handleRequestSubmit = async (
-    workerId: string,
-    description: string,
-    location: string,
-    preferredDate: string
-  ) => {
-    await createRequestMutation.mutateAsync({
-      userId: DEMO_USER_ID,
-      workerId,
-      imageUrl: "",
-      description,
-      category: selectedWorker?.specialty ?? "General",
-      status: "pending",
-      location,
-      preferredDate: preferredDate || null,
-      budget: null,
-    });
   };
 
   const FilterContent = () => (
@@ -178,18 +131,13 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Search Bar */}
         <div className="flex gap-2 mb-6">
           <div className="flex-1">
-            <SearchBar
-              onSearch={setSearchQuery}
-              onFilterClick={() => setFilterOpen(true)}
-            />
+            <SearchBar onSearch={setSearchQuery} onFilterClick={() => setFilterOpen(true)} />
           </div>
         </div>
 
         <div className="flex gap-6">
-          {/* Desktop filter sidebar */}
           <aside className="hidden lg:block w-64 flex-shrink-0">
             <Card className="p-6 sticky top-20">
               <h2 className="text-lg font-semibold mb-4">Filters</h2>
@@ -198,7 +146,6 @@ export default function SearchPage() {
           </aside>
 
           <div className="flex-1 min-w-0">
-            {/* Results header */}
             <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
               <p className="text-sm text-muted-foreground">
                 {isLoading ? "Searching..." : `${filteredWorkers.length} workers found`}
@@ -221,10 +168,7 @@ export default function SearchPage() {
               </div>
             ) : viewMode === "map" ? (
               <div className="h-[520px] rounded-lg overflow-hidden border">
-                <WorkerMapView
-                  workers={filteredWorkers}
-                  onWorkerClick={setSelectedWorker}
-                />
+                <WorkerMapView workers={filteredWorkers} onWorkerClick={setSelectedWorker} />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -235,7 +179,7 @@ export default function SearchPage() {
                     verified={worker.verified === 1}
                     availableNow={worker.availableNow === 1}
                     onViewProfile={() => setSelectedWorker(worker)}
-                    onRequest={() => setSelectedWorker(worker)}
+                    onRequest={() => navigate("/book")}
                   />
                 ))}
               </div>
@@ -244,7 +188,6 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Mobile filter sheet */}
       <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
@@ -261,7 +204,6 @@ export default function SearchPage() {
         worker={selectedWorker}
         open={!!selectedWorker}
         onClose={() => setSelectedWorker(null)}
-        onRequestSubmit={handleRequestSubmit}
       />
     </div>
   );

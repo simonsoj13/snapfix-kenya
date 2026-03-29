@@ -1,9 +1,10 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import TopNav from "@/components/TopNav";
 import BottomNav from "@/components/BottomNav";
 import HomePage from "@/pages/HomePage";
@@ -11,6 +12,8 @@ import SearchPage from "@/pages/SearchPage";
 import RequestsPage from "@/pages/RequestsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import AdminDashboard from "@/pages/AdminDashboard";
+import LoginPage from "@/pages/LoginPage";
+import BookingFlow from "@/pages/BookingFlow";
 import NotFound from "@/pages/not-found";
 
 const TAB_ROUTES = {
@@ -31,12 +34,39 @@ function getActiveTab(pathname: string): Tab {
 
 function Router() {
   const [location, navigate] = useLocation();
+  const { user, isLoading } = useAuth();
 
-  // Admin dashboard has its own full-screen layout
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Public routes
+  if (location === "/login") {
+    if (user) return <Redirect to="/" />;
+    return <LoginPage />;
+  }
+
+  // Auth guard
+  if (!user) return <Redirect to="/login" />;
+
+  // Admin — full screen, no chrome
   if (location === "/admin") {
     return (
       <Switch>
         <Route path="/admin" component={AdminDashboard} />
+      </Switch>
+    );
+  }
+
+  // Book — full screen, no bottom nav
+  if (location === "/book") {
+    return (
+      <Switch>
+        <Route path="/book" component={BookingFlow} />
       </Switch>
     );
   }
@@ -68,10 +98,12 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
