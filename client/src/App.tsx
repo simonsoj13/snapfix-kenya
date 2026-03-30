@@ -12,8 +12,10 @@ import SearchPage from "@/pages/SearchPage";
 import RequestsPage from "@/pages/RequestsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminLoginPage from "@/pages/AdminLoginPage";
 import LoginPage from "@/pages/LoginPage";
 import BookingFlow from "@/pages/BookingFlow";
+import WorkerDashboard from "@/pages/WorkerDashboard";
 import NotFound from "@/pages/not-found";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -23,7 +25,6 @@ const TAB_ROUTES = {
   requests: "/requests",
   profile: "/profile",
 } as const;
-
 type Tab = keyof typeof TAB_ROUTES;
 
 function getActiveTab(pathname: string): Tab {
@@ -39,31 +40,45 @@ function Router() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
       </div>
     );
   }
 
-  // Public routes
+  // ── Admin login — always public ──
+  if (location === "/admin-login") {
+    if (user?.role === "admin") return <Redirect to="/admin" />;
+    return <AdminLoginPage />;
+  }
+
+  // ── Main login — always public ──
   if (location === "/login") {
-    if (user) return <Redirect to="/" />;
+    if (user && user.role !== "admin") return <Redirect to="/" />;
+    if (user?.role === "admin") return <Redirect to="/admin" />;
     return <LoginPage />;
   }
 
-  // Auth guard
+  // ── Unauthenticated → send to login ──
   if (!user) return <Redirect to="/login" />;
 
-  // Admin — full screen, no chrome
-  if (location === "/admin") {
-    return (
-      <Switch>
-        <Route path="/admin" component={AdminDashboard} />
-      </Switch>
-    );
+  // ── Admin user ──
+  if (user.role === "admin") {
+    if (location === "/admin") return <AdminDashboard />;
+    return <Redirect to="/admin" />;
   }
 
-  // Book — full screen, no bottom nav
+  // ── Worker user ──
+  if (user.role === "worker") {
+    if (location === "/worker") return <WorkerDashboard />;
+    if (location === "/book") return <BookingFlow />;
+    return <Redirect to="/worker" />;
+  }
+
+  // ── Booking ──
   if (location === "/book") {
     return (
       <Switch>
@@ -72,6 +87,7 @@ function Router() {
     );
   }
 
+  // ── Customer app ──
   const activeTab = getActiveTab(location);
   const handleTabChange = (tab: Tab) => navigate(TAB_ROUTES[tab]);
 
@@ -80,7 +96,6 @@ function Router() {
       <TopNav
         onSearchClick={() => navigate("/search")}
         onProfileClick={() => navigate("/profile")}
-        onAdminClick={() => navigate("/admin")}
         notificationCount={0}
       />
       <Switch>

@@ -9,7 +9,11 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("customer"), // customer | worker
+  role: text("role").notNull().default("customer"), // customer | worker | admin
+  idDocUrl: text("id_doc_url"),
+  workSampleUrls: text("work_sample_urls"),
+  walletBalance: real("wallet_balance").notNull().default(0),
+  idVerified: integer("id_verified").notNull().default(0),
 });
 
 export const workers = pgTable("workers", {
@@ -39,31 +43,89 @@ export const jobRequests = pgTable("job_requests", {
   imageUrl: text("image_url").notNull(),
   description: text("description").notNull(),
   category: text("category").notNull(),
-  area: text("area").notNull().default(""),         // bathroom|sitting-room|bedroom|kitchen|compound
-  status: text("status").notNull(),                 // pending|quoted|assigned|deposit-paid|in-progress|completed|cancelled
+  area: text("area").notNull().default(""),
+  status: text("status").notNull(),
   location: text("location").notNull(),
   preferredDate: text("preferred_date"),
-  isNow: integer("is_now").notNull().default(0),    // 1 = immediate
+  isNow: integer("is_now").notNull().default(0),
   budget: integer("budget"),
+  quotedMin: real("quoted_min"),
+  quotedMax: real("quoted_max"),
   quotedAmount: real("quoted_amount"),
   depositAmount: real("deposit_amount"),
   workerContactShown: integer("worker_contact_shown").notNull().default(0),
 });
 
-// ── Insert schemas ────────────────────────────────────────────────────────────
+// ── Reviews ───────────────────────────────────────────────────────────────────
+export interface Review {
+  id: string;
+  userId: string;
+  workerId: string;
+  rating: number;
+  comment: string;
+  customerName: string;
+  jobCategory: string;
+  createdAt: string;
+}
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+// ── Transactions ──────────────────────────────────────────────────────────────
+export interface Transaction {
+  id: string;
+  userId: string;
+  workerId: string;
+  jobId: string;
+  amount: number;
+  type: "deposit" | "balance" | "reversal";
+  status: "completed" | "reversed" | "pending";
+  phone: string;
+  mpesaRef: string;
+  customerName: string;
+  workerName: string;
+  category: string;
+  createdAt: string;
+}
+
+// ── Support Tickets ───────────────────────────────────────────────────────────
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  subject: string;
+  message: string;
+  status: "open" | "in-progress" | "resolved";
+  priority: "low" | "medium" | "high";
+  createdAt: string;
+  response?: string;
+}
+
+// ── Pricing Config ────────────────────────────────────────────────────────────
+export interface PricingConfig {
+  category: string;
+  baseMin: number;
+  baseMax: number;
+  depositPercent: number;
+}
+
+// ── Insert schemas ────────────────────────────────────────────────────────────
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  walletBalance: true,
+  idVerified: true,
+});
 export const loginSchema = z.object({
-  credential: z.string().min(1), // email or phone
+  credential: z.string().min(1),
+  password: z.string().min(1),
+});
+export const adminLoginSchema = z.object({
+  email: z.string().email(),
   password: z.string().min(1),
 });
 
 export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true });
-
 export const insertJobRequestSchema = createInsertSchema(jobRequests).omit({ id: true });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Worker = typeof workers.$inferSelect;

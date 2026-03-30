@@ -3,21 +3,15 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { analyzeRepairImage } from "./ai";
-import { insertJobRequestSchema, insertUserSchema, loginSchema } from "@shared/schema";
+import { insertJobRequestSchema, insertUserSchema, loginSchema, adminLoginSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-// ── Fake AI Quotation helper ──────────────────────────────────────────────────
-function generateQuote(category: string, area: string, description: string): { quoted: number; deposit: number; breakdown: string } {
-  const baseRates: Record<string, number> = {
-    Plumbing: 3500,
-    Electrical: 4200,
-    Welding: 3800,
-    Carpentry: 3000,
-    HVAC: 5000,
-    Appliance: 2500,
-    General: 3000,
-  };
+// ── Quote generation using configurable pricing ────────────────────────────
+async function generateQuoteRange(category: string, area: string, description: string) {
+  const configs = await storage.getPricingConfig();
+  const config = configs.find((c) => c.category === category) ?? configs.find((c) => c.category === "General");
+  if (!config) throw new Error("No pricing config found");
 
   const areaMultipliers: Record<string, number> = {
     bathroom: 1.3,
@@ -26,29 +20,37 @@ function generateQuote(category: string, area: string, description: string): { q
     bedroom: 1.0,
     compound: 1.15,
   };
-
-  const base = baseRates[category] ?? 3000;
   const areaMulti = areaMultipliers[area] ?? 1.0;
-  const complexityBonus = description.length > 100 ? 800 : description.length > 50 ? 400 : 0;
-  const labour = Math.round((base * areaMulti + complexityBonus) / 100) * 100;
-  const materials = Math.round(labour * 0.35 / 100) * 100;
-  const quoted = labour + materials;
-  const deposit = Math.round(quoted * 0.3 / 100) * 100;
+  const complexityBonus = description.length > 100 ? 0.2 : description.length > 50 ? 0.1 : 0;
+
+  const minBase = Math.round((config.baseMin * areaMulti) / 100) * 100;
+  const maxBase = Math.round((config.baseMax * areaMulti * (1 + complexityBonus)) / 100) * 100;
+  const midpoint = Math.round(((minBase + maxBase) / 2) / 100) * 100;
+  const deposit = Math.round(midpoint * config.depositPercent / 100) * 100;
+
+  const minMaterials = Math.round(minBase * 0.3 / 100) * 100;
+  const maxMaterials = Math.round(maxBase * 0.35 / 100) * 100;
 
   return {
-    quoted,
+    min: minBase + minMaterials,
+    max: maxBase + maxMaterials,
+    midpoint,
     deposit,
-    breakdown: `Labour: KES ${labour.toLocaleString()} | Materials (est.): KES ${materials.toLocaleString()}`,
+    depositPercent: Math.round(config.depositPercent * 100),
+    breakdown: `Labour: KES ${minBase.toLocaleString()}–${maxBase.toLocaleString()} | Materials: KES ${minMaterials.toLocaleString()}–${maxMaterials.toLocaleString()}`,
+    category,
+    area,
   };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  // ── Auth ─────────────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
 
   app.post("/api/auth/register", async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
+      if (data.role === "admin") return res.status(403).json({ error: "Cannot register as admin" });
       const existingEmail = await storage.getUserByEmail(data.email);
       if (existingEmail) return res.status(409).json({ error: "Email already registered" });
       const existingPhone = await storage.getUserByPhone(data.phone);
@@ -68,10 +70,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = isPhone
         ? await storage.getUserByPhone(credential)
         : await storage.getUserByEmail(credential);
-
-      if (!user || user.password !== password) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
+      if (!user || user.password !== password) return res.status(401).json({ error: "Invalid credentials" });
+      if (user.role === "admin") return res.status(403).json({ error: "Please use the admin portal to sign in" });
       const { password: _, ...safe } = user;
       res.json(safe);
     } catch (err: any) {
@@ -79,7 +79,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── AI Image Analysis ─────────────────────────────────────────────────────────
+  // Admin-only login endpoint (separate, secured)
+  app.post("/api/auth/admin-login", async (req, res) => {
+    try {
+      const { email, password } = adminLoginSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.password !== password || user.role !== "admin") {
+        return res.status(401).json({ error: "Invalid admin credentials" });
+      }
+      const { password: _, ...safe } = user;
+      res.json(safe);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || "Admin login failed" });
+    }
+  });
+
+  // ── AI Image Analysis ─────────────────────────────────────────────────────
 
   app.post("/api/analyze-image", upload.single("image"), async (req, res) => {
     try {
@@ -92,16 +107,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── AI Quotation ──────────────────────────────────────────────────────────────
+  // ── AI Quotation ──────────────────────────────────────────────────────────
 
   app.post("/api/quote", async (req, res) => {
     const { category = "General", area = "bedroom", description = "" } = req.body;
-    await new Promise((r) => setTimeout(r, 900)); // simulate AI thinking
-    const result = generateQuote(category, area, description);
-    res.json(result);
+    await new Promise((r) => setTimeout(r, 900));
+    try {
+      const result = await generateQuoteRange(category, area, description);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // ── Workers ───────────────────────────────────────────────────────────────────
+  // ── Workers ───────────────────────────────────────────────────────────────
 
   app.get("/api/workers", async (_req, res) => {
     res.json(await storage.getAllWorkers());
@@ -124,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(worker);
   });
 
-  // ── Job Requests ──────────────────────────────────────────────────────────────
+  // ── Job Requests ──────────────────────────────────────────────────────────
 
   app.post("/api/job-requests", async (req, res) => {
     try {
@@ -137,6 +156,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/job-requests/user/:userId", async (req, res) => {
     res.json(await storage.getJobRequestsByUser(req.params.userId));
+  });
+
+  app.get("/api/job-requests/worker/:workerId", async (req, res) => {
+    res.json(await storage.getJobRequestsByWorker(req.params.workerId));
   });
 
   app.patch("/api/job-requests/:id/status", async (req, res) => {
@@ -153,14 +176,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updated);
   });
 
-  // ── Admin ─────────────────────────────────────────────────────────────────────
+  // ── Reviews ───────────────────────────────────────────────────────────────
+
+  app.get("/api/reviews", async (_req, res) => {
+    res.json(await storage.getAllReviews());
+  });
+
+  app.post("/api/reviews", async (req, res) => {
+    try {
+      const review = await storage.createReview(req.body);
+      res.json(review);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ── Pricing Config ────────────────────────────────────────────────────────
+
+  app.get("/api/pricing", async (_req, res) => {
+    res.json(await storage.getPricingConfig());
+  });
+
+  app.patch("/api/pricing/:category", async (req, res) => {
+    const updated = await storage.updatePricingConfig(req.params.category, req.body);
+    if (!updated) return res.status(404).json({ error: "Category not found" });
+    res.json(updated);
+  });
+
+  // ── Transactions ──────────────────────────────────────────────────────────
+
+  app.get("/api/admin/transactions", async (_req, res) => {
+    const txs = await storage.getAllTransactions();
+    res.json(txs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  });
+
+  app.post("/api/admin/transactions/:id/reverse", async (req, res) => {
+    const tx = await storage.reverseTransaction(req.params.id);
+    if (!tx) return res.status(404).json({ error: "Transaction not found" });
+    res.json(tx);
+  });
+
+  // ── Support Tickets ───────────────────────────────────────────────────────
+
+  app.get("/api/support", async (req, res) => {
+    const userId = req.query.userId as string | undefined;
+    if (userId) return res.json(await storage.getSupportTicketsByUser(userId));
+    res.json(await storage.getAllSupportTickets());
+  });
+
+  app.post("/api/support", async (req, res) => {
+    try {
+      const ticket = await storage.createSupportTicket(req.body);
+      res.json(ticket);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/support/:id", async (req, res) => {
+    const updated = await storage.updateSupportTicket(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Ticket not found" });
+    res.json(updated);
+  });
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
 
   app.get("/api/admin/stats", async (_req, res) => {
     const workers = await storage.getAllWorkers();
     const requests = await storage.getAllJobRequests();
+    const transactions = await storage.getAllTransactions();
     const avgRating = workers.reduce((s, w) => s + w.rating, 0) / (workers.length || 1);
-    const avgRate = workers.reduce((s, w) => s + w.hourlyRate, 0) / (workers.length || 1);
     const completedRequests = requests.filter((r) => r.status === "completed").length;
+    const totalRevenue = transactions.filter((t) => t.status === "completed").reduce((s, t) => s + t.amount, 0);
     res.json({
       totalWorkers: workers.length,
       activeWorkers: workers.filter((w) => w.availableNow === 1).length,
@@ -170,7 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       inProgressRequests: requests.filter((r) => r.status === "in-progress").length,
       cancelledRequests: requests.filter((r) => r.status === "cancelled").length,
       avgRating: parseFloat(avgRating.toFixed(2)),
-      totalRevenue: parseFloat((completedRequests * avgRate * 2).toFixed(2)),
+      totalRevenue,
       totalUsers: 42,
     });
   });
@@ -181,7 +268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       day,
       requests: Math.floor(Math.random() * 30) + 10,
       completed: Math.floor(Math.random() * 20) + 5,
-      revenue: Math.floor(Math.random() * 2000) + 500,
+      revenue: Math.floor(Math.random() * 20000) + 5000,
     })));
   });
 
@@ -204,6 +291,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const worker = await storage.getWorker(req.params.id);
     if (!worker) return res.status(404).json({ error: "Worker not found" });
     const updated = await storage.updateWorkerAvailability(req.params.id, worker.availableNow === 1 ? 0 : 1);
+    res.json(updated);
+  });
+
+  app.patch("/api/admin/workers/:id/verify", async (req, res) => {
+    const worker = await storage.getWorker(req.params.id);
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+    const updated = await storage.updateWorkerAvailability(req.params.id, worker.availableNow);
     res.json(updated);
   });
 
