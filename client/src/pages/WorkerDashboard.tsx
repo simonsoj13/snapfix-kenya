@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,10 @@ import { useLocation } from "wouter";
 import {
   Wallet, Briefcase, ShieldCheck, Camera, MapPin, Star, Clock,
   CheckCircle2, LogOut, ArrowRight, AlertCircle, Upload,
-  Phone, CreditCard, TrendingUp,
+  Phone, CreditCard, TrendingUp, Eye, ImageIcon, X, Loader2,
 } from "lucide-react";
 import type { JobRequest } from "@shared/schema";
-import snapfixLogo from "/snapfix-logo.jpg";
+import SnapfixLogo from "@/components/SnapfixLogo";
 
 const STATUS_BADGE: Record<string, { label: string; class: string }> = {
   pending:       { label: "Pending",       class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
@@ -29,13 +29,21 @@ const STATUS_BADGE: Record<string, { label: string; class: string }> = {
   cancelled:     { label: "Cancelled",     class: "bg-destructive/10 text-destructive" },
 };
 
-// ── Mock wallet data ──────────────────────────────────────────────────────────
 const MOCK_WALLET_HISTORY = [
   { id: "1", label: "Plumbing job - Alice W.", amount: 3500, type: "credit", date: "2026-03-28" },
-  { id: "2", label: "Withdrawal to M-Pesa",  amount: 2000, type: "debit",  date: "2026-03-27" },
+  { id: "2", label: "Withdrawal to M-Pesa",   amount: 2000, type: "debit",  date: "2026-03-27" },
   { id: "3", label: "Electrical job - James K.", amount: 5200, type: "credit", date: "2026-03-25" },
-  { id: "4", label: "Platform fee",           amount: 520,  type: "debit",  date: "2026-03-25" },
+  { id: "4", label: "Platform fee",            amount: 520,  type: "debit",  date: "2026-03-25" },
 ];
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function WorkerDashboard() {
   const { user, logout } = useAuth();
@@ -46,8 +54,14 @@ export default function WorkerDashboard() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
-  const [idUploaded, setIdUploaded] = useState(false);
-  const [sampleUploaded, setSampleUploaded] = useState(false);
+  const [viewPhoto, setViewPhoto] = useState<{ url: string; title: string } | null>(null);
+
+  // ID upload state
+  const [idFront, setIdFront] = useState<string | null>(null);
+  const [idBack, setIdBack] = useState<string | null>(null);
+  const [samples, setSamples] = useState<(string | null)[]>([null, null, null, null, null]);
+  const [submittingDocs, setSubmittingDocs] = useState(false);
+  const [docsSubmitted, setDocsSubmitted] = useState(false);
 
   const { data: jobs = [], isLoading } = useQuery<JobRequest[]>({
     queryKey: ["/api/job-requests/worker", user?.id],
@@ -56,7 +70,7 @@ export default function WorkerDashboard() {
   });
 
   const availableJobs = jobs.filter((j) => ["pending", "quoted", "deposit-paid"].includes(j.status));
-  const activeJobs = jobs.filter((j) => j.status === "in-progress");
+  const activeJobs    = jobs.filter((j) => j.status === "in-progress");
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
   const walletBalance = 6180;
@@ -64,6 +78,44 @@ export default function WorkerDashboard() {
 
   const handleAcceptJob = (jobId: string) => {
     toast({ title: "Job accepted!", description: "Customer has been notified. Good luck!" });
+  };
+
+  const handleIdFile = async (side: "front" | "back", file: File) => {
+    const b64 = await fileToBase64(file);
+    if (side === "front") setIdFront(b64);
+    else setIdBack(b64);
+  };
+
+  const handleSampleFile = async (index: number, file: File) => {
+    const b64 = await fileToBase64(file);
+    setSamples((prev) => {
+      const next = [...prev];
+      next[index] = b64;
+      return next;
+    });
+  };
+
+  const handleSubmitDocs = async () => {
+    if (!idFront || !idBack) {
+      toast({ title: "Missing ID photos", description: "Please upload both sides of your ID.", variant: "destructive" });
+      return;
+    }
+    const workSamples = samples.filter(Boolean) as string[];
+    setSubmittingDocs(true);
+    try {
+      const res = await fetch("/api/worker/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: user?.id, idFront, idBack, workSamples }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setDocsSubmitted(true);
+      toast({ title: "Documents submitted!", description: "Admin will review within 24 hours." });
+    } catch {
+      toast({ title: "Submission failed", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmittingDocs(false);
+    }
   };
 
   const handleSubmitSupport = async () => {
@@ -92,13 +144,15 @@ export default function WorkerDashboard() {
   };
 
   const initials = user?.name?.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2) ?? "W";
+  const idUploaded = !!idFront && !!idBack;
+  const sampleUploaded = samples.some(Boolean);
 
   return (
     <div className="min-h-screen bg-background pb-10">
       {/* Header */}
       <div className="bg-primary px-4 pt-6 pb-8">
         <div className="flex items-center justify-between mb-4">
-          <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-10 h-10 rounded-xl object-cover" />
+          <SnapfixLogo size={36} showBackground />
           <div className="flex items-center gap-2">
             <Badge className="bg-white/20 text-white border-0 text-xs">Worker</Badge>
             <Button
@@ -165,12 +219,11 @@ export default function WorkerDashboard() {
 
           {/* ── Jobs tab ── */}
           <TabsContent value="jobs" className="space-y-4">
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: "Available", value: availableJobs.length, icon: AlertCircle, color: "text-yellow-500" },
-                { label: "Active", value: activeJobs.length, icon: Clock, color: "text-primary" },
-                { label: "Done", value: completedJobs.length, icon: CheckCircle2, color: "text-green-500" },
+                { label: "Active",    value: activeJobs.length,    icon: Clock,         color: "text-primary" },
+                { label: "Done",      value: completedJobs.length, icon: CheckCircle2,  color: "text-green-500" },
               ].map(({ label, value, icon: Icon, color }) => (
                 <Card key={label}>
                   <CardContent className="py-3 text-center">
@@ -198,7 +251,6 @@ export default function WorkerDashboard() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {/* Available / Incoming jobs first */}
                 {availableJobs.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-2">INCOMING JOBS</h3>
@@ -206,17 +258,31 @@ export default function WorkerDashboard() {
                       <Card key={job.id} className="mb-3 border-primary/20">
                         <CardContent className="py-4 space-y-3">
                           <div className="flex items-start justify-between gap-2">
-                            <div>
+                            <div className="flex-1 min-w-0">
                               <span className="font-semibold text-sm">{job.category}</span>
                               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                                <MapPin className="w-3 h-3" /> {job.location}
+                                <MapPin className="w-3 h-3 flex-shrink-0" /> {job.location}
                               </div>
                             </div>
-                            <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs"}>
+                            <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs flex-shrink-0"}>
                               {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2">{job.description}</p>
+                          {job.imageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewPhoto({ url: job.imageUrl!, title: `${job.category} — Customer Photo` })}
+                              className="group relative w-full h-32 rounded-md overflow-hidden border hover-elevate"
+                              data-testid={`photo-job-${job.id}`}
+                            >
+                              <img src={job.imageUrl} alt="Customer problem photo" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2">
+                                <Eye className="w-5 h-5 text-white" />
+                                <span className="text-white text-xs font-medium">View Photo</span>
+                              </div>
+                            </button>
+                          )}
                           {job.quotedAmount && (
                             <p className="text-sm font-bold">KES {job.quotedAmount.toLocaleString()}</p>
                           )}
@@ -234,15 +300,28 @@ export default function WorkerDashboard() {
                   </div>
                 )}
 
-                {/* All jobs list */}
                 <h3 className="text-sm font-semibold text-muted-foreground mb-2">ALL JOBS</h3>
                 {jobs.map((job) => (
                   <Card key={job.id} className="mb-2">
                     <CardContent className="py-3">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{job.category} — {job.area}</p>
-                          <p className="text-xs text-muted-foreground truncate">{job.location}</p>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {job.imageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewPhoto({ url: job.imageUrl!, title: `${job.category} — Customer Photo` })}
+                              className="group relative w-10 h-10 rounded-md overflow-hidden border flex-shrink-0 hover-elevate"
+                            >
+                              <img src={job.imageUrl} alt="Job photo" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <Eye className="w-3 h-3 text-white" />
+                              </div>
+                            </button>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{job.category}{job.area ? ` — ${job.area}` : ""}</p>
+                            <p className="text-xs text-muted-foreground truncate">{job.location}</p>
+                          </div>
                         </div>
                         <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs flex-shrink-0"}>
                           {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
@@ -254,7 +333,6 @@ export default function WorkerDashboard() {
               </div>
             )}
 
-            {/* Support button */}
             <Button
               variant="outline"
               className="w-full gap-2"
@@ -286,15 +364,15 @@ export default function WorkerDashboard() {
                   <span className="text-muted-foreground">Platform Fee (10%)</span>
                   <span className="text-destructive font-semibold">- KES 3,240</span>
                 </div>
-                <div className="border-t pt-2 flex justify-between text-sm font-bold">
-                  <span>Net Earnings</span>
-                  <span className="text-primary">KES 29,160</span>
+                <div className="flex justify-between text-sm border-t pt-2 mt-1">
+                  <span className="font-medium">Net Earnings</span>
+                  <span className="font-bold text-primary">KES 29,160</span>
                 </div>
               </CardContent>
             </Card>
 
-            <h3 className="text-sm font-semibold text-muted-foreground">TRANSACTION HISTORY</h3>
             <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">RECENT TRANSACTIONS</h3>
               {MOCK_WALLET_HISTORY.map((tx) => (
                 <Card key={tx.id}>
                   <CardContent className="py-3">
@@ -319,96 +397,162 @@ export default function WorkerDashboard() {
 
           {/* ── Verify tab ── */}
           <TabsContent value="profile" className="space-y-4">
-            <Card>
-              <CardContent className="py-4 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <ShieldCheck className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold">ID Verification</h3>
-                  {idUploaded && <Badge className="bg-green-500/10 text-green-600 border-0 text-xs ml-auto">Uploaded</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Upload a clear photo of your National ID (front and back) or Passport. Required to start accepting jobs.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {["Front Side", "Back Side"].map((side) => (
-                    <label
-                      key={side}
-                      className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl cursor-pointer hover-elevate text-center"
-                      data-testid={`upload-id-${side.toLowerCase().replace(" ", "-")}`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={() => setIdUploaded(true)}
-                      />
-                      <Camera className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">ID {side}</span>
-                    </label>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="py-4 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Camera className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold">Work Samples</h3>
-                  {sampleUploaded && <Badge className="bg-green-500/10 text-green-600 border-0 text-xs ml-auto">Uploaded</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Upload up to 5 photos of your previous work. This helps customers choose you with confidence.
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <label
-                      key={i}
-                      className="aspect-square flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-xl cursor-pointer hover-elevate"
-                      data-testid={`upload-sample-${i}`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={() => setSampleUploaded(true)}
-                      />
-                      <Upload className="w-5 h-5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Photo {i}</span>
-                    </label>
-                  ))}
-                </div>
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  onClick={() => toast({ title: "Verification submitted!", description: "Admin will review within 24 hours." })}
-                  data-testid="button-submit-verification"
-                >
-                  Submit for Verification
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex items-start gap-3">
-                  <div className={`w-3 h-3 rounded-full mt-0.5 flex-shrink-0 ${idUploaded && sampleUploaded ? "bg-green-500" : "bg-yellow-500"}`} />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {idUploaded && sampleUploaded ? "Verification Pending Review" : "Verification Incomplete"}
+            {docsSubmitted ? (
+              <Card>
+                <CardContent className="py-8 text-center space-y-3">
+                  <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
+                  <h3 className="font-semibold">Documents Submitted</h3>
+                  <p className="text-sm text-muted-foreground">Admin will review your ID and work samples within 24 hours. You'll be notified once approved.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* ID Upload */}
+                <Card>
+                  <CardContent className="py-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-primary" />
+                      <h3 className="font-semibold">National ID / Passport</h3>
+                      {idUploaded && <Badge className="bg-green-500/10 text-green-600 border-0 text-xs ml-auto">Ready</Badge>}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Upload a clear photo of your National ID (front and back) or Passport. Required to start accepting jobs.
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {idUploaded && sampleUploaded
-                        ? "Admin will review your documents within 24 hours."
-                        : "Upload your ID and work samples to get verified and start earning."}
+                    <div className="grid grid-cols-2 gap-3">
+                      {(["front", "back"] as const).map((side) => {
+                        const preview = side === "front" ? idFront : idBack;
+                        return (
+                          <label
+                            key={side}
+                            className="relative flex flex-col items-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover-elevate text-center overflow-hidden aspect-[4/3]"
+                            data-testid={`upload-id-${side}`}
+                          >
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => e.target.files?.[0] && handleIdFile(side, e.target.files[0])}
+                            />
+                            {preview ? (
+                              <>
+                                <img src={preview} alt={`ID ${side}`} className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+                                <div className="absolute inset-0 bg-black/30 flex items-end justify-center pb-2">
+                                  <span className="text-white text-xs font-medium capitalize">ID {side} ✓</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-6 h-6 text-muted-foreground mt-3" />
+                                <span className="text-xs text-muted-foreground capitalize">ID {side}</span>
+                              </>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Work Samples */}
+                <Card>
+                  <CardContent className="py-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-primary" />
+                      <h3 className="font-semibold">Work Samples</h3>
+                      {sampleUploaded && (
+                        <Badge className="bg-green-500/10 text-green-600 border-0 text-xs ml-auto">
+                          {samples.filter(Boolean).length}/5 uploaded
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Upload up to 5 photos of your previous work. This helps customers choose you with confidence.
                     </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="grid grid-cols-3 gap-2">
+                      {samples.map((preview, i) => (
+                        <label
+                          key={i}
+                          className="relative aspect-square flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-xl cursor-pointer hover-elevate overflow-hidden"
+                          data-testid={`upload-sample-${i + 1}`}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => e.target.files?.[0] && handleSampleFile(i, e.target.files[0])}
+                          />
+                          {preview ? (
+                            <>
+                              <img src={preview} alt={`Sample ${i + 1}`} className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+                              <div className="absolute inset-0 bg-black/30 flex items-end justify-center pb-1">
+                                <span className="text-white text-xs">{i + 1} ✓</span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-5 h-5 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Photo {i + 1}</span>
+                            </>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+
+                    <Button
+                      className="w-full gap-2"
+                      onClick={handleSubmitDocs}
+                      disabled={submittingDocs || !idFront || !idBack}
+                      data-testid="button-submit-verification"
+                    >
+                      {submittingDocs ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</>
+                      ) : (
+                        <><ShieldCheck className="w-4 h-4" /> Submit for Verification</>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Status card */}
+                <Card>
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-3 h-3 rounded-full mt-0.5 flex-shrink-0 ${idUploaded && sampleUploaded ? "bg-green-500" : "bg-yellow-500"}`} />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {idUploaded && sampleUploaded ? "Ready to Submit" : "Verification Incomplete"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {idUploaded && sampleUploaded
+                            ? "All documents uploaded. Press Submit to send for admin review."
+                            : "Upload your ID (both sides) and at least one work sample to get verified."}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Photo Viewer Dialog */}
+      <Dialog open={!!viewPhoto} onOpenChange={() => setViewPhoto(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ImageIcon className="w-4 h-4 text-primary" />
+              {viewPhoto?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {viewPhoto && (
+            <div className="rounded-md overflow-hidden">
+              <img src={viewPhoto.url} alt={viewPhoto.title} className="w-full object-contain max-h-[60vh]" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Support Dialog */}
       <Dialog open={supportOpen} onOpenChange={setSupportOpen}>

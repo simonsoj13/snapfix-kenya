@@ -20,13 +20,13 @@ import { useLocation } from "wouter";
 import WorkerMapView from "@/components/WorkerMapView";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { getWorkerImage } from "@/lib/workerImages";
-import type { Worker, JobRequest } from "@shared/schema";
+import type { Worker, JobRequest, WorkerVerification } from "@shared/schema";
 import {
   Users, Briefcase, Star, TrendingUp, MapPin, CheckCircle2, Clock, XCircle, Activity,
   ToggleLeft, ToggleRight, LogOut, CreditCard, RotateCcw, HeadphonesIcon,
-  Settings, ChevronDown, ChevronUp, MessageSquare, AlertTriangle, Ban,
+  Settings, MessageSquare, ShieldCheck, ThumbsUp, ThumbsDown, ImageIcon, Eye,
 } from "lucide-react";
-import snapfixLogo from "/snapfix-logo.jpg";
+import SnapfixLogo from "@/components/SnapfixLogo";
 
 interface AdminStats {
   totalWorkers: number; activeWorkers: number;
@@ -127,6 +127,13 @@ export default function AdminDashboard() {
     queryKey: ["/api/support"],
     queryFn: () => fetch("/api/support").then((r) => r.json()),
   });
+  const { data: verifications = [], refetch: refetchVer } = useQuery<WorkerVerification[]>({
+    queryKey: ["/api/admin/verifications"],
+    queryFn: () => fetch("/api/admin/verifications").then((r) => r.json()),
+    refetchInterval: 10000,
+  });
+
+  const [viewPhoto, setViewPhoto] = useState<{ url: string; title: string } | null>(null);
   const { data: pricing = [], refetch: refetchPricing } = useQuery<PricingConfig[]>({
     queryKey: ["/api/pricing"],
     queryFn: () => fetch("/api/pricing").then((r) => r.json()),
@@ -200,6 +207,27 @@ export default function AdminDashboard() {
     },
   });
 
+  const approveVerification = useMutation({
+    mutationFn: ({ userId, adminNote }: { userId: string; adminNote?: string }) =>
+      fetch(`/api/admin/verifications/${userId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminNote }),
+      }).then((r) => r.json()),
+    onSuccess: () => { refetchVer(); toast({ title: "Worker ID documents approved" }); },
+  });
+
+  const rejectVerification = useMutation({
+    mutationFn: ({ userId, adminNote }: { userId: string; adminNote?: string }) =>
+      fetch(`/api/admin/verifications/${userId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminNote }),
+      }).then((r) => r.json()),
+    onSuccess: () => { refetchVer(); toast({ title: "Worker verification rejected" }); },
+  });
+
+  const pendingVerifications = verifications.filter((v) => v.status === "pending").length;
   const openTickets = tickets.filter((t) => t.status !== "resolved").length;
 
   return (
@@ -208,7 +236,7 @@ export default function AdminDashboard() {
       <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
         <div className="flex h-16 items-center justify-between px-4 md:px-8 gap-4">
           <div className="flex items-center gap-3">
-            <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-9 h-9 rounded-lg object-cover" />
+            <SnapfixLogo size={38} showBackground />
             <div>
               <h1 className="text-lg font-bold leading-tight">Snap-Fix Kenya</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">Admin Dashboard</p>
@@ -273,6 +301,12 @@ export default function AdminDashboard() {
               <HeadphonesIcon className="w-3.5 h-3.5 mr-1" />Support
               {openTickets > 0 && (
                 <Badge className="ml-1 bg-destructive text-destructive-foreground text-xs border-0 no-default-active-elevate">{openTickets}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="verifications" data-testid="tab-verifications">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1" />ID Docs
+              {pendingVerifications > 0 && (
+                <Badge className="ml-1 bg-yellow-500 text-white border-0 text-xs no-default-active-elevate">{pendingVerifications}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="pricing" data-testid="tab-pricing">
@@ -460,6 +494,7 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Photo</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead>Location</TableHead>
@@ -470,9 +505,23 @@ export default function AdminDashboard() {
                     </TableHeader>
                     <TableBody>
                       {requests.length === 0 ? (
-                        <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
                       ) : requests.map((req) => (
                         <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
+                          <TableCell>
+                            {req.imageUrl ? (
+                              <button type="button" onClick={() => setViewPhoto({ url: req.imageUrl, title: `${req.category} — Customer Photo` })} className="group relative w-14 h-12 rounded-md overflow-hidden border hover-elevate flex-shrink-0" data-testid={`photo-req-${req.id}`}>
+                                <img src={req.imageUrl} alt="Customer upload" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Eye className="w-4 h-4 text-white" />
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="w-14 h-12 rounded-md border-2 border-dashed flex items-center justify-center">
+                                <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
                           <TableCell className="max-w-xs"><p className="text-sm line-clamp-2">{req.description}</p></TableCell>
                           <TableCell>
@@ -667,6 +716,141 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* ── ID Verification Docs ── */}
+          <TabsContent value="verifications">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" /> Worker ID Document Review
+                  {pendingVerifications > 0 && (
+                    <Badge className="bg-yellow-500/10 text-yellow-700 border-0 ml-auto">{pendingVerifications} pending</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {verifications.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground">
+                    <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No document submissions yet</p>
+                    <p className="text-xs mt-1">Workers who upload ID documents will appear here for review</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {verifications.map((v) => (
+                      <div key={v.userId} className="p-5 space-y-4" data-testid={`verification-${v.userId}`}>
+                        {/* Worker info row */}
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0">
+                              {v.workerName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-semibold">{v.workerName}</p>
+                              <p className="text-xs text-muted-foreground">{v.workerEmail} · {v.workerPhone}</p>
+                              <p className="text-xs text-muted-foreground">Submitted: {new Date(v.submittedAt).toLocaleDateString("en-KE", { dateStyle: "medium" })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className={`border-0 text-xs ${
+                              v.status === "approved" ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                              : v.status === "rejected" ? "bg-destructive/10 text-destructive"
+                              : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                            }`}>
+                              {v.status === "approved" ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
+                              {v.status}
+                            </Badge>
+                            {v.status === "pending" && (
+                              <>
+                                <Button size="sm" className="gap-1.5 bg-green-600 text-xs" onClick={() => approveVerification.mutate({ userId: v.userId })} disabled={approveVerification.isPending} data-testid={`button-approve-${v.userId}`}>
+                                  <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                                </Button>
+                                <Button size="sm" variant="ghost" className="gap-1.5 text-destructive text-xs" onClick={() => rejectVerification.mutate({ userId: v.userId })} disabled={rejectVerification.isPending} data-testid={`button-reject-${v.userId}`}>
+                                  <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ID Documents */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ID Documents</p>
+                          <div className="flex gap-3 flex-wrap">
+                            {v.idFrontUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setViewPhoto({ url: v.idFrontUrl, title: `${v.workerName} — ID Front` })}
+                                className="group relative w-28 h-20 rounded-md overflow-hidden border hover-elevate flex-shrink-0"
+                                data-testid={`photo-id-front-${v.userId}`}
+                              >
+                                <img src={v.idFrontUrl} alt="ID Front" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Eye className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-0.5 text-center">Front</span>
+                              </button>
+                            ) : (
+                              <div className="w-28 h-20 rounded-md border-2 border-dashed flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
+                                No front ID
+                              </div>
+                            )}
+                            {v.idBackUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setViewPhoto({ url: v.idBackUrl, title: `${v.workerName} — ID Back` })}
+                                className="group relative w-28 h-20 rounded-md overflow-hidden border hover-elevate flex-shrink-0"
+                                data-testid={`photo-id-back-${v.userId}`}
+                              >
+                                <img src={v.idBackUrl} alt="ID Back" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Eye className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-0.5 text-center">Back</span>
+                              </button>
+                            ) : (
+                              <div className="w-28 h-20 rounded-md border-2 border-dashed flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
+                                No back ID
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Work samples */}
+                        {v.workSamples.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Work Samples</p>
+                            <div className="flex gap-3 flex-wrap">
+                              {v.workSamples.map((url, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => setViewPhoto({ url, title: `${v.workerName} — Work Sample ${i + 1}` })}
+                                  className="group relative w-24 h-20 rounded-md overflow-hidden border hover-elevate flex-shrink-0"
+                                  data-testid={`photo-sample-${v.userId}-${i}`}
+                                >
+                                  <img src={url} alt={`Sample ${i + 1}`} className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Eye className="w-5 h-5 text-white" />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {v.adminNote && (
+                          <div className="p-3 bg-muted/50 rounded-md text-xs text-muted-foreground">
+                            Admin note: {v.adminNote}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ── Pricing Config ── */}
           <TabsContent value="pricing">
             <Card>
@@ -735,6 +919,23 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Photo Viewer Dialog */}
+      <Dialog open={!!viewPhoto} onOpenChange={() => setViewPhoto(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <ImageIcon className="w-4 h-4 text-primary" />
+              {viewPhoto?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {viewPhoto && (
+            <div className="rounded-md overflow-hidden">
+              <img src={viewPhoto.url} alt={viewPhoto.title} className="w-full object-contain max-h-[70vh]" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Reply Dialog */}
       <Dialog open={!!replyOpen} onOpenChange={() => setReplyOpen(null)}>

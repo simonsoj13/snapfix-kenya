@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/context/AuthContext";
-import snapfixLogo from "/snapfix-logo.jpg";
+import SnapfixLogo from "@/components/SnapfixLogo";
 
 interface TopNavProps {
   onMenuClick?: () => void;
@@ -29,11 +29,7 @@ export default function TopNav({
       <div className="flex h-14 items-center justify-between px-4 md:px-6">
         {/* Brand */}
         <div className="flex items-center gap-2">
-          <img
-            src={snapfixLogo}
-            alt="Snap-Fix Kenya"
-            className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
-          />
+          <SnapfixLogo size={34} showBackground />
           <span className="text-base font-bold tracking-tight leading-tight">
             Snap-Fix <span className="text-primary">Kenya</span>
           </span>

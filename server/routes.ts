@@ -272,6 +272,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updated);
   });
 
+  // ── Worker document upload (base64) ──────────────────────────────────────
+  app.post("/api/worker/documents", async (req, res) => {
+    try {
+      const { userId, idFrontUrl, idBackUrl, workSamples } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+      const workSampleUrls = Array.isArray(workSamples) ? workSamples.join(",") : workSamples ?? "";
+      const user = await storage.updateUserDocuments(userId, { idFrontUrl, idBackUrl, workSampleUrls });
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ── Worker verification management ────────────────────────────────────────
+  app.get("/api/admin/verifications", async (_req, res) => {
+    const vs = await storage.getAllVerifications();
+    res.json(vs.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
+  });
+
+  app.post("/api/admin/verifications/:userId/approve", async (req, res) => {
+    const v = await storage.updateVerificationStatus(req.params.userId, "approved", req.body.adminNote);
+    if (!v) return res.status(404).json({ error: "Verification not found" });
+    res.json(v);
+  });
+
+  app.post("/api/admin/verifications/:userId/reject", async (req, res) => {
+    const v = await storage.updateVerificationStatus(req.params.userId, "rejected", req.body.adminNote);
+    if (!v) return res.status(404).json({ error: "Verification not found" });
+    res.json(v);
+  });
+
   // ── Admin ─────────────────────────────────────────────────────────────────
 
   app.get("/api/admin/stats", async (_req, res) => {
