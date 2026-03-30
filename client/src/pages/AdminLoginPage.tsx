@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
-import { ShieldCheck, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, KeyRound, CheckCircle2 } from "lucide-react";
 import snapfixLogo from "/snapfix-logo.jpg";
 
 export default function AdminLoginPage() {
@@ -18,6 +19,14 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Forgot password
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotCred, setForgotCred] = useState("");
+  const [forgotStep, setForgotStep] = useState<"enter" | "code" | "done">("enter");
+  const [forgotCode, setForgotCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -40,6 +49,32 @@ export default function AdminLoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotRequest = async () => {
+    if (!forgotCred) return;
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: forgotCred }),
+    });
+    const data = await res.json();
+    setDevCode(data.devCode);
+    setForgotStep("code");
+    toast({ title: "Reset code sent!", description: data.devCode ? `Dev code: ${data.devCode}` : "Check your email." });
+  };
+
+  const handleForgotReset = async () => {
+    if (!forgotCred || !forgotCode || !newPassword) return;
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: forgotCred, code: forgotCode, newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast({ title: "Reset failed", description: data.error, variant: "destructive" }); return; }
+    setForgotStep("done");
+    toast({ title: "Password reset!", description: "You can now sign in with your new password." });
   };
 
   return (
@@ -116,8 +151,14 @@ export default function AdminLoginPage() {
               {loading ? "Authenticating…" : "Sign In to Admin"}
             </Button>
 
-            <p className="text-center text-xs text-muted-foreground">
-              Not an admin?{" "}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <button
+                className="text-primary underline"
+                onClick={() => { setForgotCred(""); setForgotStep("enter"); setForgotOpen(true); }}
+                data-testid="button-admin-forgot"
+              >
+                Forgot password?
+              </button>
               <button
                 className="text-primary underline"
                 onClick={() => navigate("/login")}
@@ -125,7 +166,7 @@ export default function AdminLoginPage() {
               >
                 Customer / Worker login
               </button>
-            </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -133,6 +174,89 @@ export default function AdminLoginPage() {
           All admin actions are logged and monitored.
         </p>
       </div>
+
+      {/* ── Forgot Password Dialog ── */}
+      <Dialog open={forgotOpen} onOpenChange={(o) => { setForgotOpen(o); if (!o) { setForgotStep("enter"); setForgotCode(""); setNewPassword(""); setDevCode(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-primary" /> Reset Admin Password
+            </DialogTitle>
+          </DialogHeader>
+
+          {forgotStep === "enter" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Enter your admin email address to receive a reset code.</p>
+              <div className="space-y-2">
+                <Label htmlFor="forgot-admin-email">Admin Email</Label>
+                <Input
+                  id="forgot-admin-email"
+                  type="email"
+                  placeholder="admin@snapfix.ke"
+                  value={forgotCred}
+                  onChange={(e) => setForgotCred(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleForgotRequest()}
+                  data-testid="input-forgot-admin-email"
+                />
+              </div>
+              <Button className="w-full" onClick={handleForgotRequest} disabled={!forgotCred} data-testid="button-send-admin-reset">
+                Send Reset Code
+              </Button>
+            </div>
+          )}
+
+          {forgotStep === "code" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                A 6-digit code has been sent to <strong>{forgotCred}</strong>.
+                {devCode && (
+                  <span className="block mt-1 text-xs bg-muted rounded px-2 py-1 font-mono">
+                    Dev mode code: <strong>{devCode}</strong>
+                  </span>
+                )}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="admin-reset-code">Reset Code</Label>
+                <Input
+                  id="admin-reset-code"
+                  placeholder="6-digit code"
+                  maxLength={6}
+                  value={forgotCode}
+                  onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, ""))}
+                  className="text-center tracking-widest text-lg"
+                  data-testid="input-admin-reset-code"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-new-password">New Password</Label>
+                <Input
+                  id="admin-new-password"
+                  type="password"
+                  placeholder="Min 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleForgotReset()}
+                  data-testid="input-admin-new-password"
+                />
+              </div>
+              <Button className="w-full" onClick={handleForgotReset} disabled={forgotCode.length < 6 || newPassword.length < 6} data-testid="button-confirm-admin-reset">
+                Reset Password
+              </Button>
+            </div>
+          )}
+
+          {forgotStep === "done" && (
+            <div className="space-y-4 text-center py-2">
+              <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" />
+              <p className="font-semibold">Password Reset Successful!</p>
+              <p className="text-sm text-muted-foreground">You can now sign in with your new password.</p>
+              <Button className="w-full" onClick={() => { setForgotOpen(false); setForgotStep("enter"); }} data-testid="button-close-admin-reset">
+                Sign In Now
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

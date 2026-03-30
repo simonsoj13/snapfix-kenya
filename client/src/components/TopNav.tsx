@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell, LayoutDashboard, Wrench } from "lucide-react";
+import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/context/AuthContext";
+import snapfixLogo from "/snapfix-logo.jpg";
 
 interface TopNavProps {
   onMenuClick?: () => void;
@@ -16,7 +17,6 @@ interface TopNavProps {
 export default function TopNav({
   onNotificationsClick,
   onProfileClick,
-  onAdminClick,
   notificationCount = 0,
 }: TopNavProps) {
   const { user } = useAuth();
@@ -29,10 +29,14 @@ export default function TopNav({
       <div className="flex h-14 items-center justify-between px-4 md:px-6">
         {/* Brand */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <Wrench className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-foreground tracking-tight">FixIt</span>
+          <img
+            src={snapfixLogo}
+            alt="Snap-Fix Kenya"
+            className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+          />
+          <span className="text-base font-bold tracking-tight leading-tight">
+            Snap-Fix <span className="text-primary">Kenya</span>
+          </span>
         </div>
 
         {/* Actions */}
@@ -50,15 +54,6 @@ export default function TopNav({
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onAdminClick}
-            data-testid="button-admin"
-            title="Admin Dashboard"
-          >
-            <LayoutDashboard className="w-5 h-5" />
-          </Button>
           <ThemeToggle />
           <Avatar
             className="w-8 h-8 cursor-pointer ml-1"

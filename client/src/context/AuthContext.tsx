@@ -5,7 +5,7 @@ export interface AuthUser {
   name: string;
   email: string;
   phone: string;
-  role: "customer" | "worker";
+  role: "customer" | "worker" | "admin";
 }
 
 interface AuthContextValue {
@@ -22,16 +22,18 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
 });
 
+const STORAGE_KEY = "snapfix_user";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("fixit_user");
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setUser(JSON.parse(stored));
     } catch {
-      localStorage.removeItem("fixit_user");
+      localStorage.removeItem(STORAGE_KEY);
     } finally {
       setIsLoading(false);
     }
@@ -39,11 +41,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (u: AuthUser) => {
     setUser(u);
-    localStorage.setItem("fixit_user", JSON.stringify(u));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem(STORAGE_KEY);
+    // also clear old key if present
     localStorage.removeItem("fixit_user");
   };
 

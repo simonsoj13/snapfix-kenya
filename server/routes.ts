@@ -79,6 +79,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Forgot password — simulated (sends code, then allows reset)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "Email or phone required" });
+    const isPhone = credential.startsWith("+") || /^\d{10,}$/.test(credential);
+    const user = isPhone
+      ? await storage.getUserByPhone(credential)
+      : await storage.getUserByEmail(credential);
+    // Always return success (don't reveal if user exists)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    if (user) {
+      // In production: send SMS/email. Here we return the code in dev mode only.
+      (storage as any)._resetCodes = (storage as any)._resetCodes || {};
+      (storage as any)._resetCodes[user.id] = code;
+    }
+    res.json({ success: true, devCode: user ? code : null, message: "If an account exists, a reset code has been sent." });
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    const { credential, code, newPassword } = req.body;
+    if (!credential || !code || !newPassword) return res.status(400).json({ error: "All fields required" });
+    const isPhone = credential.startsWith("+") || /^\d{10,}$/.test(credential);
+    const user = isPhone
+      ? await storage.getUserByPhone(credential)
+      : await storage.getUserByEmail(credential);
+    if (!user) return res.status(404).json({ error: "Account not found" });
+    const storedCode = (storage as any)._resetCodes?.[user.id];
+    if (!storedCode || storedCode !== code) return res.status(400).json({ error: "Invalid or expired code" });
+    await storage.updateUserPassword(user.id, newPassword);
+    delete (storage as any)._resetCodes[user.id];
+    res.json({ success: true });
+  });
+
   // Admin-only login endpoint (separate, secured)
   app.post("/api/auth/admin-login", async (req, res) => {
     try {

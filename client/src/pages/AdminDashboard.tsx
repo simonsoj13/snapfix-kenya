@@ -7,61 +7,52 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 import WorkerMapView from "@/components/WorkerMapView";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { getWorkerImage } from "@/lib/workerImages";
 import type { Worker, JobRequest } from "@shared/schema";
 import {
-  Users, Briefcase, Star, DollarSign, TrendingUp, MapPin,
-  CheckCircle2, Clock, XCircle, Activity, ArrowLeft,
-  ToggleLeft, ToggleRight,
+  Users, Briefcase, Star, TrendingUp, MapPin, CheckCircle2, Clock, XCircle, Activity,
+  ToggleLeft, ToggleRight, LogOut, CreditCard, RotateCcw, HeadphonesIcon,
+  Settings, ChevronDown, ChevronUp, MessageSquare, AlertTriangle, Ban,
 } from "lucide-react";
-import { useLocation } from "wouter";
+import snapfixLogo from "/snapfix-logo.jpg";
 
-// ── Types ────────────────────────────────────────────────────────────────────
 interface AdminStats {
-  totalWorkers: number;
-  activeWorkers: number;
-  totalRequests: number;
-  pendingRequests: number;
-  completedRequests: number;
-  inProgressRequests: number;
-  cancelledRequests: number;
-  avgRating: number;
-  totalRevenue: number;
-  totalUsers: number;
+  totalWorkers: number; activeWorkers: number;
+  totalRequests: number; pendingRequests: number;
+  completedRequests: number; inProgressRequests: number;
+  cancelledRequests: number; avgRating: number;
+  totalRevenue: number; totalUsers: number;
 }
-
-interface TrendPoint {
-  day: string;
-  requests: number;
-  completed: number;
-  revenue: number;
+interface TrendPoint { day: string; requests: number; completed: number; revenue: number; }
+interface CategoryPoint { name: string; value: number; }
+interface Transaction {
+  id: string; customerName: string; workerName: string; amount: number;
+  type: string; status: string; phone: string; mpesaRef: string;
+  category: string; createdAt: string;
 }
-
-interface CategoryPoint {
-  name: string;
-  value: number;
+interface SupportTicket {
+  id: string; userName: string; userRole: string; subject: string; message: string;
+  status: string; priority: string; createdAt: string; response?: string;
 }
+interface PricingConfig { category: string; baseMin: number; baseMax: number; depositPercent: number; }
 
-// ── Palette for pie chart ────────────────────────────────────────────────────
-const PIE_COLORS = ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4"];
+const PIE_COLORS = ["#0d9488","#f97316","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
 
-// ── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({
-  title, value, subtitle, icon: Icon, trend,
-}: {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ElementType;
-  trend?: { value: number; positive: boolean };
+function StatCard({ title, value, subtitle, icon: Icon, trend }: {
+  title: string; value: string | number; subtitle?: string;
+  icon: React.ElementType; trend?: { value: number; positive: boolean };
 }) {
   return (
     <Card>
@@ -75,7 +66,7 @@ function StatCard({
         <div className="text-3xl font-bold">{value}</div>
         {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
         {trend && (
-          <p className={`text-xs mt-1 font-medium ${trend.positive ? "text-green-600" : "text-red-500"}`}>
+          <p className={`text-xs mt-1 font-medium ${trend.positive ? "text-green-600" : "text-destructive"}`}>
             {trend.positive ? "▲" : "▼"} {Math.abs(trend.value)}% vs last week
           </p>
         )}
@@ -84,51 +75,116 @@ function StatCard({
   );
 }
 
-// ── Main Dashboard ────────────────────────────────────────────────────────────
+const STATUS_TX: Record<string, string> = {
+  completed: "bg-green-500/10 text-green-700 dark:text-green-400",
+  reversed:  "bg-destructive/10 text-destructive",
+  pending:   "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+};
+const PRIORITY_BADGE: Record<string, string> = {
+  high:   "bg-destructive/10 text-destructive",
+  medium: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+  low:    "bg-primary/10 text-primary",
+};
+
 export default function AdminDashboard() {
   const [_, navigate] = useLocation();
   const { toast } = useToast();
+  const { logout } = useAuth();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
+  const [replyOpen, setReplyOpen] = useState<SupportTicket | null>(null);
+  const [replyText, setReplyText] = useState("");
 
-  const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
+  const { data: stats } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     queryFn: () => fetch("/api/admin/stats").then((r) => r.json()),
     refetchInterval: 15000,
   });
-
   const { data: trend = [] } = useQuery<TrendPoint[]>({
     queryKey: ["/api/admin/requests-trend"],
     queryFn: () => fetch("/api/admin/requests-trend").then((r) => r.json()),
     refetchInterval: 30000,
   });
-
   const { data: categoryData = [] } = useQuery<CategoryPoint[]>({
     queryKey: ["/api/admin/category-breakdown"],
     queryFn: () => fetch("/api/admin/category-breakdown").then((r) => r.json()),
   });
-
   const { data: workers = [] } = useQuery<Worker[]>({
     queryKey: ["/api/admin/workers"],
     queryFn: () => fetch("/api/admin/workers").then((r) => r.json()),
     refetchInterval: 10000,
   });
-
   const { data: requests = [] } = useQuery<JobRequest[]>({
     queryKey: ["/api/admin/requests"],
     queryFn: () => fetch("/api/admin/requests").then((r) => r.json()),
     refetchInterval: 10000,
   });
+  const { data: transactions = [], refetch: refetchTx } = useQuery<Transaction[]>({
+    queryKey: ["/api/admin/transactions"],
+    queryFn: () => fetch("/api/admin/transactions").then((r) => r.json()),
+  });
+  const { data: tickets = [], refetch: refetchTickets } = useQuery<SupportTicket[]>({
+    queryKey: ["/api/support"],
+    queryFn: () => fetch("/api/support").then((r) => r.json()),
+  });
+  const { data: pricing = [], refetch: refetchPricing } = useQuery<PricingConfig[]>({
+    queryKey: ["/api/pricing"],
+    queryFn: () => fetch("/api/pricing").then((r) => r.json()),
+  });
 
   const toggleMutation = useMutation({
-    mutationFn: (workerId: string) =>
-      fetch(`/api/admin/workers/${workerId}/toggle-availability`, { method: "PATCH" }).then((r) => r.json()),
+    mutationFn: (wId: string) =>
+      fetch(`/api/admin/workers/${wId}/toggle-availability`, { method: "PATCH" }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/admin/workers"] });
       qc.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({ title: "Worker availability updated" });
     },
   });
+
+  const reverseMutation = useMutation({
+    mutationFn: (txId: string) =>
+      fetch(`/api/admin/transactions/${txId}/reverse`, { method: "POST" }).then((r) => r.json()),
+    onSuccess: () => {
+      refetchTx();
+      toast({ title: "Transaction reversed", description: "Funds will be returned to customer." });
+    },
+  });
+
+  const updateTicket = useMutation({
+    mutationFn: ({ id, ...updates }: { id: string; status?: string; response?: string }) =>
+      fetch(`/api/support/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      refetchTickets();
+      toast({ title: "Ticket updated" });
+    },
+  });
+
+  const [pricingEdits, setPricingEdits] = useState<Record<string, { baseMin: number; baseMax: number }>>({});
+
+  const savePricing = async (category: string) => {
+    const edit = pricingEdits[category];
+    if (!edit) return;
+    await fetch(`/api/pricing/${encodeURIComponent(category)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(edit),
+    });
+    refetchPricing();
+    setPricingEdits((p) => { const n = { ...p }; delete n[category]; return n; });
+    toast({ title: `${category} pricing updated` });
+  };
+
+  const handleReply = () => {
+    if (!replyOpen) return;
+    updateTicket.mutate({ id: replyOpen.id, status: "resolved", response: replyText });
+    setReplyOpen(null);
+    setReplyText("");
+  };
 
   const updateRequestStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -140,133 +196,97 @@ export default function AdminDashboard() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/admin/requests"] });
       qc.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      toast({ title: "Request status updated" });
+      toast({ title: "Request updated" });
     },
   });
+
+  const openTickets = tickets.filter((t) => t.status !== "resolved").length;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
         <div className="flex h-16 items-center justify-between px-4 md:px-8 gap-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/")} data-testid="button-back-home">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          <div className="flex items-center gap-3">
+            <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-9 h-9 rounded-lg object-cover" />
             <div>
-              <h1 className="text-xl font-bold">FixIt Admin</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Platform Operations Dashboard</p>
+              <h1 className="text-lg font-bold leading-tight">Snap-Fix Kenya</h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">Admin Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-xs text-muted-foreground hidden sm:inline">Live</span>
             </div>
-            <Badge variant="secondary">Admin</Badge>
+            <Badge variant="secondary" className="hidden sm:inline-flex">Admin</Badge>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { logout(); navigate("/admin-login"); }} data-testid="button-admin-logout">
+              <LogOut className="w-4 h-4" /> Logout
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 space-y-6">
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            title="Total Users"
-            value={stats?.totalUsers ?? "—"}
-            subtitle="Registered on platform"
-            icon={Users}
-            trend={{ value: 12, positive: true }}
-          />
-          <StatCard
-            title="Active Workers"
-            value={`${stats?.activeWorkers ?? "—"} / ${stats?.totalWorkers ?? "—"}`}
-            subtitle="Currently available"
-            icon={Briefcase}
-            trend={{ value: 5, positive: true }}
-          />
-          <StatCard
-            title="Total Revenue"
-            value={stats ? `$${stats.totalRevenue.toLocaleString()}` : "—"}
-            subtitle="Platform earnings"
-            icon={DollarSign}
-            trend={{ value: 18, positive: true }}
-          />
-          <StatCard
-            title="Avg. Rating"
-            value={stats?.avgRating ?? "—"}
-            subtitle="Across all workers"
-            icon={Star}
-            trend={{ value: 2, positive: true }}
-          />
+          <StatCard title="Total Users" value={stats?.totalUsers ?? "—"} subtitle="Registered on platform" icon={Users} trend={{ value: 12, positive: true }} />
+          <StatCard title="Active Fundis" value={`${stats?.activeWorkers ?? "—"} / ${stats?.totalWorkers ?? "—"}`} subtitle="Currently available" icon={Briefcase} trend={{ value: 5, positive: true }} />
+          <StatCard title="Revenue (KES)" value={stats ? `${(stats.totalRevenue).toLocaleString()}` : "—"} subtitle="Platform earnings" icon={CreditCard} trend={{ value: 18, positive: true }} />
+          <StatCard title="Avg. Rating" value={stats?.avgRating ?? "—"} subtitle="Across all fundis" icon={Star} trend={{ value: 2, positive: true }} />
         </div>
 
-        {/* Request status row */}
+        {/* Status Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-4 h-4 text-yellow-600" />
+          {[
+            { label: "Pending", value: stats?.pendingRequests ?? 0, icon: Clock, color: "text-yellow-600 bg-yellow-500/10" },
+            { label: "In Progress", value: stats?.inProgressRequests ?? 0, icon: Activity, color: "text-blue-600 bg-blue-500/10" },
+            { label: "Completed", value: stats?.completedRequests ?? 0, icon: CheckCircle2, color: "text-green-600 bg-green-500/10" },
+            { label: "Cancelled", value: stats?.cancelledRequests ?? 0, icon: XCircle, color: "text-destructive bg-destructive/10" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label} className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color.split(" ")[1]}`}>
+                  <Icon className={`w-4 h-4 ${color.split(" ")[0]}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-2xl font-bold">{value}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">{stats?.pendingRequests ?? 0}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                <Activity className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">In Progress</p>
-                <p className="text-2xl font-bold">{stats?.inProgressRequests ?? 0}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Completed</p>
-                <p className="text-2xl font-bold">{stats?.completedRequests ?? 0}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                <XCircle className="w-4 h-4 text-red-500" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Cancelled</p>
-                <p className="text-2xl font-bold">{stats?.cancelledRequests ?? 0}</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          ))}
         </div>
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap gap-1">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="map" data-testid="tab-map">Live Map</TabsTrigger>
-            <TabsTrigger value="workers" data-testid="tab-workers">Workers</TabsTrigger>
+            <TabsTrigger value="workers" data-testid="tab-workers">Fundis</TabsTrigger>
             <TabsTrigger value="requests" data-testid="tab-requests">Requests</TabsTrigger>
+            <TabsTrigger value="transactions" data-testid="tab-transactions">
+              <CreditCard className="w-3.5 h-3.5 mr-1" />Transactions
+            </TabsTrigger>
+            <TabsTrigger value="support" data-testid="tab-support">
+              <HeadphonesIcon className="w-3.5 h-3.5 mr-1" />Support
+              {openTickets > 0 && (
+                <Badge className="ml-1 bg-destructive text-destructive-foreground text-xs border-0 no-default-active-elevate">{openTickets}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="pricing" data-testid="tab-pricing">
+              <Settings className="w-3.5 h-3.5 mr-1" />Pricing
+            </TabsTrigger>
           </TabsList>
 
-          {/* ── Overview Tab ── */}
+          {/* ── Overview ── */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Request volume chart */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="w-4 h-4" />
-                    Request Volume – Last 7 Days
+                    <TrendingUp className="w-4 h-4" /> Request Volume – Last 7 Days
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -274,8 +294,8 @@ export default function AdminDashboard() {
                     <AreaChart data={trend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gReq" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="gComp" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
@@ -287,48 +307,30 @@ export default function AdminDashboard() {
                       <YAxis className="text-xs" />
                       <Tooltip />
                       <Legend />
-                      <Area type="monotone" dataKey="requests" name="Total Requests" stroke="#3b82f6" fill="url(#gReq)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="requests" name="Total Requests" stroke="#0d9488" fill="url(#gReq)" strokeWidth={2} />
                       <Area type="monotone" dataKey="completed" name="Completed" stroke="#10b981" fill="url(#gComp)" strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-
-              {/* Category breakdown */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Service Categories</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-base">Service Categories</CardTitle></CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={260}>
                     <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {categoryData.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
+                      <Pie data={categoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
+                        {categoryData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip />
-                      <Legend />
+                      <Tooltip /><Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Revenue bar chart */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <DollarSign className="w-4 h-4" />
-                  Daily Revenue – Last 7 Days
+                  <CreditCard className="w-4 h-4" /> Daily Revenue (KES) – Last 7 Days
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -336,35 +338,28 @@ export default function AdminDashboard() {
                   <BarChart data={trend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="day" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={(v) => `$${v}`} />
-                    <Tooltip formatter={(v: number) => [`$${v}`, "Revenue"]} />
-                    <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <YAxis className="text-xs" tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
+                    <Tooltip formatter={(v: number) => [`KES ${v.toLocaleString()}`, "Revenue"]} />
+                    <Bar dataKey="revenue" name="Revenue" fill="#0d9488" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* ── Live Map Tab ── */}
+          {/* ── Live Map ── */}
           <TabsContent value="map">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <MapPin className="w-4 h-4" />
-                  Live Worker Locations
-                  <Badge variant="secondary" className="ml-auto">
-                    {workers.filter((w) => w.availableNow === 1).length} available
-                  </Badge>
+                  <MapPin className="w-4 h-4" /> Live Fundi Locations
+                  <Badge variant="secondary" className="ml-auto">{workers.filter((w) => w.availableNow === 1).length} available</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 overflow-hidden rounded-b-lg">
-                <div className="h-[520px]">
-                  <WorkerMapView workers={workers} />
-                </div>
+                <div className="h-[520px]"><WorkerMapView workers={workers} /></div>
               </CardContent>
             </Card>
-
-            {/* Quick worker status strip */}
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {workers.map((w) => (
                 <Card key={w.id} className="p-3 flex items-center gap-2">
@@ -378,13 +373,12 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
-          {/* ── Workers Tab ── */}
+          {/* ── Workers ── */}
           <TabsContent value="workers">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  Worker Management
+                  <Briefcase className="w-4 h-4" /> Fundi Management
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -392,10 +386,10 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Worker</TableHead>
+                        <TableHead>Fundi</TableHead>
                         <TableHead>Specialty</TableHead>
                         <TableHead>Rating</TableHead>
-                        <TableHead>Rate</TableHead>
+                        <TableHead>Rate (KES/hr)</TableHead>
                         <TableHead>Jobs</TableHead>
                         <TableHead>Distance</TableHead>
                         <TableHead>Status</TableHead>
@@ -421,9 +415,7 @@ export default function AdminDashboard() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="whitespace-nowrap">{worker.specialty}</Badge>
-                          </TableCell>
+                          <TableCell><Badge variant="secondary" className="whitespace-nowrap">{worker.specialty}</Badge></TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Star className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
@@ -431,31 +423,17 @@ export default function AdminDashboard() {
                               <span className="text-xs text-muted-foreground">({worker.reviewCount})</span>
                             </div>
                           </TableCell>
-                          <TableCell className="font-medium">${worker.hourlyRate}/hr</TableCell>
+                          <TableCell className="font-medium">KES {worker.hourlyRate.toLocaleString()}</TableCell>
                           <TableCell>{worker.jobsCompleted}</TableCell>
-                          <TableCell>{worker.distance.toFixed(1)} mi</TableCell>
+                          <TableCell>{worker.distance.toFixed(1)} km</TableCell>
                           <TableCell>
-                            <Badge
-                              variant="secondary"
-                              className={worker.availableNow === 1
-                                ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                                : "bg-muted text-muted-foreground"}
-                            >
+                            <Badge className={`${worker.availableNow === 1 ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-muted text-muted-foreground"} border-0`}>
                               {worker.availableNow === 1 ? "Available" : "Offline"}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1.5 whitespace-nowrap"
-                              onClick={() => toggleMutation.mutate(worker.id)}
-                              disabled={toggleMutation.isPending}
-                              data-testid={`button-toggle-${worker.id}`}
-                            >
-                              {worker.availableNow === 1
-                                ? <ToggleRight className="w-4 h-4 text-green-600" />
-                                : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+                            <Button variant="ghost" size="sm" className="gap-1.5 whitespace-nowrap" onClick={() => toggleMutation.mutate(worker.id)} disabled={toggleMutation.isPending} data-testid={`button-toggle-${worker.id}`}>
+                              {worker.availableNow === 1 ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
                               Toggle
                             </Button>
                           </TableCell>
@@ -468,18 +446,13 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
-          {/* ── Requests Tab ── */}
+          {/* ── Requests ── */}
           <TabsContent value="requests">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  All Job Requests
-                  {requests.length === 0 && (
-                    <span className="text-xs font-normal text-muted-foreground ml-1">
-                      — No requests yet. Submit one from the home page.
-                    </span>
-                  )}
+                  <Activity className="w-4 h-4" /> All Job Requests
+                  {requests.length === 0 && <span className="text-xs font-normal text-muted-foreground ml-1">— None yet</span>}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -490,74 +463,270 @@ export default function AdminDashboard() {
                         <TableHead>Category</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead>Location</TableHead>
+                        <TableHead>Quote (KES)</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {requests.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                            No job requests yet
+                        <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
+                      ) : requests.map((req) => (
+                        <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
+                          <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
+                          <TableCell className="max-w-xs"><p className="text-sm line-clamp-2">{req.description}</p></TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate max-w-[120px]">{req.location}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            {req.quotedMin && req.quotedMax
+                              ? `${req.quotedMin.toLocaleString()}–${req.quotedMax.toLocaleString()}`
+                              : req.quotedAmount ? req.quotedAmount.toLocaleString() : "—"}
+                          </TableCell>
+                          <TableCell><JobStatusBadge status={req.status as any} /></TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 flex-wrap">
+                              {req.status === "pending" && (
+                                <Button size="sm" variant="ghost" className="text-xs gap-1" onClick={() => updateRequestStatus.mutate({ id: req.id, status: "in-progress" })} data-testid={`button-start-${req.id}`}>
+                                  Start
+                                </Button>
+                              )}
+                              {req.status === "in-progress" && (
+                                <Button size="sm" variant="ghost" className="text-xs gap-1 text-green-600" onClick={() => updateRequestStatus.mutate({ id: req.id, status: "completed" })} data-testid={`button-complete-${req.id}`}>
+                                  Complete
+                                </Button>
+                              )}
+                              {req.status !== "cancelled" && req.status !== "completed" && (
+                                <Button size="sm" variant="ghost" className="text-xs gap-1 text-destructive" onClick={() => updateRequestStatus.mutate({ id: req.id, status: "cancelled" })} data-testid={`button-cancel-${req.id}`}>
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        requests.map((req) => (
-                          <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Transactions ── */}
+          <TabsContent value="transactions">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> Transaction Monitoring
+                  <Badge variant="secondary" className="ml-auto">{transactions.length} total</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Fundi</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Amount (KES)</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>M-Pesa Ref</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.length === 0 ? (
+                        <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No transactions yet</TableCell></TableRow>
+                      ) : transactions.map((tx) => (
+                        <TableRow key={tx.id} data-testid={`row-tx-${tx.id}`}>
+                          <TableCell className="font-medium text-sm whitespace-nowrap">{tx.customerName}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{tx.workerName}</TableCell>
+                          <TableCell><Badge variant="secondary" className="text-xs">{tx.category}</Badge></TableCell>
+                          <TableCell className="font-bold text-sm">KES {tx.amount.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge className="border-0 text-xs capitalize bg-primary/10 text-primary">{tx.type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{tx.mpesaRef}</TableCell>
+                          <TableCell>
+                            <Badge className={`border-0 text-xs ${STATUS_TX[tx.status] ?? ""}`}>
+                              {tx.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(tx.createdAt).toLocaleDateString("en-KE")}
+                          </TableCell>
+                          <TableCell>
+                            {tx.status === "completed" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-1.5 text-destructive text-xs whitespace-nowrap"
+                                onClick={() => reverseMutation.mutate(tx.id)}
+                                disabled={reverseMutation.isPending}
+                                data-testid={`button-reverse-${tx.id}`}
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" /> Reverse
+                              </Button>
+                            )}
+                            {tx.status === "reversed" && (
+                              <span className="text-xs text-muted-foreground">Reversed</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Support ── */}
+          <TabsContent value="support">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HeadphonesIcon className="w-4 h-4" /> Customer Support Tickets
+                  {openTickets > 0 && (
+                    <Badge className="bg-destructive text-destructive-foreground border-0 ml-auto no-default-active-elevate">
+                      {openTickets} open
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tickets.length === 0 ? (
+                        <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No support tickets</TableCell></TableRow>
+                      ) : tickets.map((ticket) => (
+                        <TableRow key={ticket.id} data-testid={`row-ticket-${ticket.id}`}>
+                          <TableCell className="font-medium text-sm whitespace-nowrap">{ticket.userName}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs capitalize">{ticket.userRole}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="text-sm font-medium truncate">{ticket.subject}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{ticket.message}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={`border-0 text-xs capitalize ${PRIORITY_BADGE[ticket.priority] ?? ""}`}>
+                              {ticket.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={`border-0 text-xs capitalize ${
+                              ticket.status === "resolved"
+                                ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                                : ticket.status === "in-progress"
+                                ? "bg-blue-500/10 text-blue-600"
+                                : "bg-yellow-500/10 text-yellow-700"
+                            }`}>
+                              {ticket.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(ticket.createdAt).toLocaleDateString("en-KE")}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setReplyOpen(ticket); setReplyText(ticket.response ?? ""); }} data-testid={`button-reply-${ticket.id}`}>
+                                <MessageSquare className="w-3.5 h-3.5" /> Reply
+                              </Button>
+                              {ticket.status !== "resolved" && (
+                                <Button size="sm" variant="ghost" className="gap-1 text-xs text-muted-foreground" onClick={() => updateTicket.mutate({ id: ticket.id, status: ticket.status === "open" ? "in-progress" : "resolved" })} data-testid={`button-status-${ticket.id}`}>
+                                  {ticket.status === "open" ? "Start" : "Resolve"}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Pricing Config ── */}
+          <TabsContent value="pricing">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Settings className="w-4 h-4" /> Pricing Configuration
+                  <span className="text-xs font-normal text-muted-foreground ml-1">Edit base price ranges per category (KES)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Min Price (KES)</TableHead>
+                        <TableHead>Max Price (KES)</TableHead>
+                        <TableHead>Deposit %</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pricing.map((p) => {
+                        const edit = pricingEdits[p.category];
+                        const minVal = edit?.baseMin ?? p.baseMin;
+                        const maxVal = edit?.baseMax ?? p.baseMax;
+                        return (
+                          <TableRow key={p.category} data-testid={`row-pricing-${p.category}`}>
+                            <TableCell><Badge variant="secondary">{p.category}</Badge></TableCell>
                             <TableCell>
-                              <Badge variant="secondary">{req.category}</Badge>
-                            </TableCell>
-                            <TableCell className="max-w-xs">
-                              <p className="text-sm line-clamp-2">{req.description}</p>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
-                                <MapPin className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate max-w-[120px]">{req.location}</span>
-                              </div>
+                              <Input
+                                type="number"
+                                value={minVal}
+                                onChange={(e) => setPricingEdits((prev) => ({ ...prev, [p.category]: { baseMin: Number(e.target.value), baseMax: (prev[p.category]?.baseMax ?? p.baseMax) } }))}
+                                className="w-28"
+                                data-testid={`input-min-${p.category}`}
+                              />
                             </TableCell>
                             <TableCell>
-                              <JobStatusBadge status={req.status as any} />
+                              <Input
+                                type="number"
+                                value={maxVal}
+                                onChange={(e) => setPricingEdits((prev) => ({ ...prev, [p.category]: { baseMin: (prev[p.category]?.baseMin ?? p.baseMin), baseMax: Number(e.target.value) } }))}
+                                className="w-28"
+                                data-testid={`input-max-${p.category}`}
+                              />
                             </TableCell>
+                            <TableCell className="text-sm font-medium">{Math.round(p.depositPercent * 100)}%</TableCell>
                             <TableCell>
-                              <div className="flex gap-1 flex-wrap">
-                                {req.status === "pending" && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-xs"
-                                    onClick={() => updateRequestStatus.mutate({ id: req.id, status: "in-progress" })}
-                                    data-testid={`button-start-${req.id}`}
-                                  >
-                                    Start
-                                  </Button>
-                                )}
-                                {req.status === "in-progress" && (
-                                  <Button
-                                    size="sm"
-                                    className="text-xs"
-                                    onClick={() => updateRequestStatus.mutate({ id: req.id, status: "completed" })}
-                                    data-testid={`button-complete-${req.id}`}
-                                  >
-                                    Complete
-                                  </Button>
-                                )}
-                                {(req.status === "pending" || req.status === "in-progress") && (
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    className="text-xs"
-                                    onClick={() => updateRequestStatus.mutate({ id: req.id, status: "cancelled" })}
-                                    data-testid={`button-cancel-admin-${req.id}`}
-                                  >
-                                    Cancel
-                                  </Button>
-                                )}
-                              </div>
+                              {edit ? (
+                                <Button size="sm" className="text-xs" onClick={() => savePricing(p.category)} data-testid={`button-save-${p.category}`}>
+                                  Save
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Saved</span>
+                              )}
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -566,6 +735,41 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Reply Dialog */}
+      <Dialog open={!!replyOpen} onOpenChange={() => setReplyOpen(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-primary" /> Reply to Ticket
+            </DialogTitle>
+          </DialogHeader>
+          {replyOpen && (
+            <div className="space-y-3">
+              <div className="p-3 bg-muted/50 rounded-md text-sm">
+                <p className="font-semibold">{replyOpen.subject}</p>
+                <p className="text-muted-foreground mt-1">{replyOpen.message}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Your Response</Label>
+                <Textarea
+                  placeholder="Type your response to the customer or fundi…"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="min-h-28"
+                  data-testid="textarea-reply"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setReplyOpen(null)}>Cancel</Button>
+                <Button className="flex-1" disabled={!replyText} onClick={handleReply} data-testid="button-send-reply">
+                  Send Reply & Resolve
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

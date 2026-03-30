@@ -12,6 +12,7 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserWallet(id: string, amount: number): Promise<User | undefined>;
+  updateUserPassword(id: string, newPassword: string): Promise<User | undefined>;
 
   getWorker(id: string): Promise<Worker | undefined>;
   getAllWorkers(): Promise<Worker[]>;
@@ -232,6 +233,14 @@ export class MemStorage implements IStorage {
     const u = this.users.get(id);
     if (!u) return undefined;
     const updated = { ...u, walletBalance: (u.walletBalance ?? 0) + amount };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async updateUserPassword(id: string, newPassword: string) {
+    const u = this.users.get(id);
+    if (!u) return undefined;
+    const updated = { ...u, password: newPassword };
     this.users.set(id, updated);
     return updated;
   }
