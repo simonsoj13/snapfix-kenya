@@ -133,15 +133,31 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Hero background — dark overlay with worker silhouette feel */}
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          background: "linear-gradient(135deg, #0d4a45 0%, #0a3530 40%, #0d1f1d 100%)",
+        }}
+      />
+      {/* Decorative tool-pattern dots */}
+      <div className="absolute inset-0 -z-10 opacity-10" style={{
+        backgroundImage: "radial-gradient(circle at 25% 30%, #14b8a6 0%, transparent 50%), radial-gradient(circle at 75% 70%, #0d9488 0%, transparent 50%)",
+      }} />
+      {/* Worker silhouette layer */}
+      <div className="absolute inset-0 -z-10 opacity-5" style={{
+        backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 60px, rgba(255,255,255,0.03) 60px, rgba(255,255,255,0.03) 120px)",
+      }} />
+
       <div className="w-full max-w-md space-y-5">
         {/* Brand */}
         <div className="text-center">
           <div className="flex items-center justify-center mb-3">
             <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-20 h-20 rounded-2xl object-cover shadow-md" />
           </div>
-          <h1 className="text-2xl font-bold">Snap-Fix Kenya</h1>
-          <p className="text-muted-foreground text-sm mt-1">Connect with skilled repair professionals</p>
+          <h1 className="text-2xl font-bold text-white">Snap-Fix Kenya</h1>
+          <p className="text-white/60 text-sm mt-1">Connect with skilled repair professionals</p>
         </div>
 
         <Card>

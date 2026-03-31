@@ -334,6 +334,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updated);
   });
 
+  // ── Worker Verifications ───────────────────────────────────────────────────
+
+  // Worker submits verification documents
+  app.post("/api/workers/verify-docs", async (req, res) => {
+    try {
+      const { userId, workerName, email, phone, idFront, idBack, workSamples } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+      const doc = await storage.upsertWorkerVerification(userId, {
+        userId, workerName, email, phone,
+        idFront: idFront ?? null,
+        idBack: idBack ?? null,
+        workSamples: workSamples ?? [],
+        status: "pending",
+        submittedAt: new Date().toISOString(),
+      });
+      res.json(doc);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Worker gets their own verification status
+  app.get("/api/workers/verify-docs/:userId", async (req, res) => {
+    const doc = await storage.getWorkerVerification(req.params.userId);
+    res.json(doc ?? null);
+  });
+
+  // Admin gets all verifications
+  app.get("/api/admin/verifications", async (_req, res) => {
+    res.json(await storage.getAllWorkerVerifications());
+  });
+
+  // Admin approves or rejects a verification
+  app.patch("/api/admin/verifications/:userId", async (req, res) => {
+    const { status, reviewNote } = req.body;
+    if (!["approved", "rejected"].includes(status)) return res.status(400).json({ error: "status must be approved or rejected" });
+    const updated = await storage.upsertWorkerVerification(req.params.userId, {
+      status, reviewNote, reviewedAt: new Date().toISOString(),
+    });
+    res.json(updated);
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

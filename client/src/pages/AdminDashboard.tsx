@@ -24,7 +24,7 @@ import type { Worker, JobRequest } from "@shared/schema";
 import {
   Users, Briefcase, Star, TrendingUp, MapPin, CheckCircle2, Clock, XCircle, Activity,
   ToggleLeft, ToggleRight, LogOut, CreditCard, RotateCcw, HeadphonesIcon,
-  Settings, ChevronDown, ChevronUp, MessageSquare, AlertTriangle, Ban,
+  Settings, MessageSquare, FileCheck, ThumbsUp, ThumbsDown, Eye,
 } from "lucide-react";
 import snapfixLogo from "/snapfix-logo.jpg";
 
@@ -47,6 +47,12 @@ interface SupportTicket {
   status: string; priority: string; createdAt: string; response?: string;
 }
 interface PricingConfig { category: string; baseMin: number; baseMax: number; depositPercent: number; }
+interface WorkerVerification {
+  userId: string; workerName: string; email: string; phone: string;
+  idFront: string | null; idBack: string | null; workSamples: string[];
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string; reviewedAt?: string; reviewNote?: string;
+}
 
 const PIE_COLORS = ["#0d9488","#f97316","#3b82f6","#8b5cf6","#ef4444","#06b6d4"];
 

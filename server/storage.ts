@@ -6,6 +6,20 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+export interface WorkerVerification {
+  userId: string;
+  workerName: string;
+  email: string;
+  phone: string;
+  idFront: string | null;
+  idBack: string | null;
+  workSamples: string[];
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+}
+
 export interface IStorage {
   getUserById(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -13,6 +27,10 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserWallet(id: string, amount: number): Promise<User | undefined>;
   updateUserPassword(id: string, newPassword: string): Promise<User | undefined>;
+
+  getWorkerVerification(userId: string): Promise<WorkerVerification | undefined>;
+  getAllWorkerVerifications(): Promise<WorkerVerification[]>;
+  upsertWorkerVerification(userId: string, data: Partial<WorkerVerification>): Promise<WorkerVerification>;
 
   getWorker(id: string): Promise<Worker | undefined>;
   getAllWorkers(): Promise<Worker[]>;
@@ -59,6 +77,8 @@ export class MemStorage implements IStorage {
   private transactions: Map<string, Transaction> = new Map();
   private supportTickets: Map<string, SupportTicket> = new Map();
   private pricingConfig: Map<string, PricingConfig> = new Map();
+  private workerVerifications: Map<string, WorkerVerification> = new Map();
+  _resetCodes: Record<string, string> = {};
 
   constructor() {
     this.seedAdmin();
@@ -97,6 +117,20 @@ export class MemStorage implements IStorage {
     mockWorkers.forEach((w) => {
       const id = randomUUID();
       this.workers.set(id, { ...w, id, verified: w.verified ?? 0, availableNow: w.availableNow ?? 0 });
+      // Create a linked user account for each seeded worker so they can log in
+      const userId = randomUUID();
+      this.users.set(userId, {
+        id: userId,
+        name: w.name,
+        email: w.email,
+        phone: w.phone,
+        password: "Fundi@2024",
+        role: "worker",
+        idDocUrl: null,
+        workSampleUrls: null,
+        walletBalance: Math.floor(Math.random() * 8000) + 2000,
+        idVerified: 1,
+      });
     });
   }
 
@@ -242,6 +276,32 @@ export class MemStorage implements IStorage {
     if (!u) return undefined;
     const updated = { ...u, password: newPassword };
     this.users.set(id, updated);
+    return updated;
+  }
+
+  // ── Worker Verifications ────────────────────────────────────────────────────
+  async getWorkerVerification(userId: string) {
+    return this.workerVerifications.get(userId);
+  }
+
+  async getAllWorkerVerifications() {
+    return Array.from(this.workerVerifications.values());
+  }
+
+  async upsertWorkerVerification(userId: string, data: Partial<WorkerVerification>): Promise<WorkerVerification> {
+    const existing = this.workerVerifications.get(userId) ?? {
+      userId,
+      workerName: "",
+      email: "",
+      phone: "",
+      idFront: null,
+      idBack: null,
+      workSamples: [],
+      status: "pending" as const,
+      submittedAt: new Date().toISOString(),
+    };
+    const updated: WorkerVerification = { ...existing, ...data, submittedAt: data.submittedAt ?? existing.submittedAt };
+    this.workerVerifications.set(userId, updated);
     return updated;
   }
 
