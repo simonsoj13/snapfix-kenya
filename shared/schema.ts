@@ -85,20 +85,6 @@ export interface Transaction {
   createdAt: string;
 }
 
-// ── Worker Verification Document ─────────────────────────────────────────────
-export interface WorkerVerification {
-  userId: string;
-  workerName: string;
-  workerEmail: string;
-  workerPhone: string;
-  idFrontUrl: string;
-  idBackUrl: string;
-  workSamples: string[];
-  submittedAt: string;
-  status: "pending" | "approved" | "rejected";
-  adminNote?: string;
-}
-
 // ── Support Tickets ───────────────────────────────────────────────────────────
 export interface SupportTicket {
   id: string;

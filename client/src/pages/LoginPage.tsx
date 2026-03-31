@@ -12,7 +12,7 @@ import {
   User, HardHat, Phone, Mail, Lock, Eye, EyeOff, Camera, Upload, ShieldCheck,
   KeyRound, CheckCircle2,
 } from "lucide-react";
-import SnapfixLogo from "@/components/SnapfixLogo";
+import snapfixLogo from "/snapfix-logo.jpg";
 
 type Role = "customer" | "worker";
 type RegStep = "details" | "worker-docs";
@@ -138,7 +138,7 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="text-center">
           <div className="flex items-center justify-center mb-3">
-            <SnapfixLogo size={90} showBackground />
+            <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-20 h-20 rounded-2xl object-cover shadow-md" />
           </div>
           <h1 className="text-2xl font-bold">Snap-Fix Kenya</h1>
           <p className="text-muted-foreground text-sm mt-1">Connect with skilled repair professionals</p>

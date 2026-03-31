@@ -3,7 +3,6 @@ import {
   type Worker, type InsertWorker,
   type JobRequest, type InsertJobRequest,
   type Review, type Transaction, type SupportTicket, type PricingConfig,
-  type WorkerVerification,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -14,9 +13,6 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserWallet(id: string, amount: number): Promise<User | undefined>;
   updateUserPassword(id: string, newPassword: string): Promise<User | undefined>;
-  updateUserDocuments(id: string, docs: { idFrontUrl?: string; idBackUrl?: string; workSampleUrls?: string }): Promise<User | undefined>;
-  getAllVerifications(): Promise<WorkerVerification[]>;
-  updateVerificationStatus(userId: string, status: "approved" | "rejected", adminNote?: string): Promise<WorkerVerification | undefined>;
 
   getWorker(id: string): Promise<Worker | undefined>;
   getAllWorkers(): Promise<Worker[]>;
@@ -63,7 +59,6 @@ export class MemStorage implements IStorage {
   private transactions: Map<string, Transaction> = new Map();
   private supportTickets: Map<string, SupportTicket> = new Map();
   private pricingConfig: Map<string, PricingConfig> = new Map();
-  private verifications: Map<string, WorkerVerification> = new Map();
 
   constructor() {
     this.seedAdmin();
@@ -247,50 +242,6 @@ export class MemStorage implements IStorage {
     if (!u) return undefined;
     const updated = { ...u, password: newPassword };
     this.users.set(id, updated);
-    return updated;
-  }
-
-  async updateUserDocuments(id: string, docs: { idFrontUrl?: string; idBackUrl?: string; workSampleUrls?: string }) {
-    const u = this.users.get(id);
-    if (!u) return undefined;
-    const updated = {
-      ...u,
-      idDocUrl: docs.idFrontUrl ?? u.idDocUrl,
-      workSampleUrls: docs.workSampleUrls ?? u.workSampleUrls,
-    };
-    this.users.set(id, updated);
-
-    // Create/update verification record
-    const existing = this.verifications.get(id);
-    const verification: WorkerVerification = {
-      userId: id,
-      workerName: u.name,
-      workerEmail: u.email,
-      workerPhone: u.phone,
-      idFrontUrl: docs.idFrontUrl ?? existing?.idFrontUrl ?? "",
-      idBackUrl: docs.idBackUrl ?? existing?.idBackUrl ?? "",
-      workSamples: docs.workSampleUrls ? docs.workSampleUrls.split(",").filter(Boolean) : existing?.workSamples ?? [],
-      submittedAt: new Date().toISOString(),
-      status: "pending",
-    };
-    this.verifications.set(id, verification);
-    return updated;
-  }
-
-  async getAllVerifications() {
-    return Array.from(this.verifications.values());
-  }
-
-  async updateVerificationStatus(userId: string, status: "approved" | "rejected", adminNote?: string) {
-    const v = this.verifications.get(userId);
-    if (!v) return undefined;
-    const updated = { ...v, status, adminNote };
-    this.verifications.set(userId, updated);
-    // If approved, mark user as verified
-    if (status === "approved") {
-      const u = this.users.get(userId);
-      if (u) this.users.set(userId, { ...u, idVerified: 1 });
-    }
     return updated;
   }
 

@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
 import { ShieldCheck, Lock, Mail, Eye, EyeOff, KeyRound, CheckCircle2 } from "lucide-react";
-import SnapfixLogo from "@/components/SnapfixLogo";
+import snapfixLogo from "/snapfix-logo.jpg";
 
 export default function AdminLoginPage() {
   const { login } = useAuth();
@@ -83,7 +83,7 @@ export default function AdminLoginPage() {
         {/* Brand */}
         <div className="text-center">
           <div className="flex items-center justify-center mb-4">
-            <SnapfixLogo size={90} showBackground />
+            <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-20 h-20 rounded-2xl object-cover" />
           </div>
           <h1 className="text-2xl font-bold">Snap-Fix Kenya</h1>
           <div className="inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-semibold">
