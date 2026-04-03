@@ -29,6 +29,7 @@ export interface IStorage {
   updateUserPassword(id: string, newPassword: string): Promise<User | undefined>;
 
   getWorkerVerification(userId: string): Promise<WorkerVerification | undefined>;
+  getWorkerVerificationByEmail(email: string): Promise<WorkerVerification | undefined>;
   getAllWorkerVerifications(): Promise<WorkerVerification[]>;
   upsertWorkerVerification(userId: string, data: Partial<WorkerVerification>): Promise<WorkerVerification>;
 
@@ -284,6 +285,12 @@ export class MemStorage implements IStorage {
     return this.workerVerifications.get(userId);
   }
 
+  async getWorkerVerificationByEmail(email: string) {
+    return Array.from(this.workerVerifications.values()).find(
+      (v) => v.email.toLowerCase() === email.toLowerCase()
+    );
+  }
+
   async getAllWorkerVerifications() {
     return Array.from(this.workerVerifications.values());
   }
@@ -354,6 +361,8 @@ export class MemStorage implements IStorage {
       isNow: req.isNow ?? 0,
       area: req.area ?? "",
       workerContactShown: req.workerContactShown ?? 0,
+      workerOnWay: (req as any).workerOnWay ?? 0,
+      estimatedArrival: (req as any).estimatedArrival ?? null,
     };
     this.jobRequests.set(id, full);
     return full;

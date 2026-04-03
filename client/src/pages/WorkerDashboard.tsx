@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import { useLocation } from "wouter";
 import {
   Wallet, Briefcase, ShieldCheck, Camera, MapPin, Clock,
   CheckCircle2, LogOut, ArrowRight, AlertCircle, Upload,
-  Phone, CreditCard, TrendingUp, X, FileCheck, Eye,
+  Phone, CreditCard, TrendingUp, X, FileCheck, Eye, Navigation,
 } from "lucide-react";
 import type { JobRequest } from "@shared/schema";
 import snapfixLogo from "/snapfix-logo.jpg";
@@ -121,6 +121,10 @@ export default function WorkerDashboard() {
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
 
+  const [etaOpen, setEtaOpen] = useState(false);
+  const [etaJobId, setEtaJobId] = useState<string | null>(null);
+  const [etaValue, setEtaValue] = useState("30 minutes");
+
   // Verification images (base64 strings)
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack, setIdBack] = useState<string | null>(null);
@@ -150,8 +154,26 @@ export default function WorkerDashboard() {
   const uploadedCount = [idFront, idBack, ...samples.filter(Boolean)].length;
   const uploadProgress = Math.min(100, Math.round((uploadedCount / 7) * 100));
 
+  const queryClient = useQueryClient();
+
   const handleAcceptJob = () => {
     toast({ title: "Job accepted!", description: "Customer has been notified. Good luck!" });
+  };
+
+  const handleMarkOnTheWay = async () => {
+    if (!etaJobId) return;
+    try {
+      await fetch(`/api/job-requests/${etaJobId}/on-the-way`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimatedArrival: etaValue }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/worker", user?.id] });
+      toast({ title: "Customer notified!", description: `ETA sent: ${etaValue}` });
+      setEtaOpen(false);
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
   };
 
   const handleSubmitVerification = async () => {
@@ -326,22 +348,48 @@ export default function WorkerDashboard() {
                     {availableJobs.map((job) => (
                       <Card key={job.id} className="mb-3 border-primary/20">
                         <CardContent className="py-4 space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <span className="font-semibold text-sm">{job.category}</span>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                                <MapPin className="w-3 h-3" /> {job.location}
+                          <div className="flex items-start gap-3">
+                            {job.imageUrl && (
+                              <img
+                                src={job.imageUrl}
+                                alt="Customer photo"
+                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0 cursor-pointer border border-border"
+                                onClick={() => setPreviewImg(job.imageUrl)}
+                                data-testid={`img-job-photo-${job.id}`}
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-semibold text-sm">{job.category}</span>
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                    <MapPin className="w-3 h-3" /> {job.location}
+                                  </div>
+                                </div>
+                                <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs flex-shrink-0"}>
+                                  {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
+                                </Badge>
                               </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{job.description}</p>
+                              {job.quotedAmount && <p className="text-sm font-bold mt-1">KES {job.quotedAmount.toLocaleString()}</p>}
                             </div>
-                            <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs"}>
-                              {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
-                            </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{job.description}</p>
-                          {job.quotedAmount && <p className="text-sm font-bold">KES {job.quotedAmount.toLocaleString()}</p>}
-                          <Button size="sm" className="w-full gap-1" onClick={handleAcceptJob} data-testid={`button-accept-job-${job.id}`}>
-                            Accept Job <ArrowRight className="w-3.5 h-3.5" />
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="flex-1 gap-1" onClick={handleAcceptJob} data-testid={`button-accept-job-${job.id}`}>
+                              Accept Job <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                            {(job.status === "deposit-paid" || job.status === "in-progress") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1"
+                                onClick={() => { setEtaJobId(job.id); setEtaOpen(true); }}
+                                data-testid={`button-on-the-way-${job.id}`}
+                              >
+                                <Navigation className="w-3.5 h-3.5" /> On My Way
+                              </Button>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     ))}
@@ -351,14 +399,39 @@ export default function WorkerDashboard() {
                 {jobs.map((job) => (
                   <Card key={job.id} className="mb-2">
                     <CardContent className="py-3">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        {job.imageUrl && (
+                          <img
+                            src={job.imageUrl}
+                            alt="Customer photo"
+                            className="w-10 h-10 rounded-md object-cover flex-shrink-0 cursor-pointer border border-border"
+                            onClick={() => setPreviewImg(job.imageUrl)}
+                          />
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{job.category} — {job.area}</p>
                           <p className="text-xs text-muted-foreground truncate">{job.location}</p>
                         </div>
-                        <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs flex-shrink-0"}>
-                          {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs"}>
+                            {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
+                          </Badge>
+                          {(job.status === "deposit-paid" || job.status === "in-progress") && (job as any).workerOnWay !== 1 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 h-6"
+                              onClick={() => { setEtaJobId(job.id); setEtaOpen(true); }}
+                            >
+                              <Navigation className="w-3 h-3" /> On My Way
+                            </Button>
+                          )}
+                          {(job as any).workerOnWay === 1 && (
+                            <span className="text-xs text-primary font-medium flex items-center gap-1">
+                              <Navigation className="w-3 h-3" /> Heading there
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -539,6 +612,44 @@ export default function WorkerDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ETA / On The Way Dialog */}
+      <Dialog open={etaOpen} onOpenChange={setEtaOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Navigation className="w-4 h-4 text-primary" /> Notify Customer — On My Way
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Let the customer know you are heading to their location. Select your estimated arrival time.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Estimated Arrival Time</Label>
+              <select
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground"
+                value={etaValue}
+                onChange={(e) => setEtaValue(e.target.value)}
+                data-testid="select-eta"
+              >
+                <option>15 minutes</option>
+                <option>30 minutes</option>
+                <option>45 minutes</option>
+                <option>1 hour</option>
+                <option>1.5 hours</option>
+                <option>2 hours</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEtaOpen(false)}>Cancel</Button>
+              <Button className="flex-1 gap-1" onClick={handleMarkOnTheWay} data-testid="button-confirm-eta">
+                <Navigation className="w-4 h-4" /> Send Notification
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Support Dialog */}
       <Dialog open={supportOpen} onOpenChange={setSupportOpen}>

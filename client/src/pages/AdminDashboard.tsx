@@ -24,7 +24,7 @@ import type { Worker, JobRequest } from "@shared/schema";
 import {
   Users, Briefcase, Star, TrendingUp, MapPin, CheckCircle2, Clock, XCircle, Activity,
   ToggleLeft, ToggleRight, LogOut, CreditCard, RotateCcw, HeadphonesIcon,
-  Settings, MessageSquare, FileCheck, ThumbsUp, ThumbsDown, Eye,
+  Settings, MessageSquare, FileCheck, ThumbsUp, ThumbsDown, Eye, ShieldCheck, Image,
 } from "lucide-react";
 import snapfixLogo from "/snapfix-logo.jpg";
 
@@ -171,6 +171,27 @@ export default function AdminDashboard() {
   });
 
   const [pricingEdits, setPricingEdits] = useState<Record<string, { baseMin: number; baseMax: number }>>({});
+  const [verifyPreview, setVerifyPreview] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState<Record<string, string>>({});
+
+  const { data: verifications = [], refetch: refetchVerifications } = useQuery<WorkerVerification[]>({
+    queryKey: ["/api/admin/verifications"],
+    queryFn: () => fetch("/api/admin/verifications").then((r) => r.json()),
+    refetchInterval: 15000,
+  });
+
+  const reviewVerification = useMutation({
+    mutationFn: ({ userId, status, reviewNote }: { userId: string; status: string; reviewNote?: string }) =>
+      fetch(`/api/admin/verifications/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, reviewNote }),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      refetchVerifications();
+      toast({ title: "Verification updated" });
+    },
+  });
 
   const savePricing = async (category: string) => {
     const edit = pricingEdits[category];
@@ -279,6 +300,14 @@ export default function AdminDashboard() {
               <HeadphonesIcon className="w-3.5 h-3.5 mr-1" />Support
               {openTickets > 0 && (
                 <Badge className="ml-1 bg-destructive text-destructive-foreground text-xs border-0 no-default-active-elevate">{openTickets}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="verifications" data-testid="tab-verifications">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1" />Verifications
+              {verifications.filter((v) => v.status === "pending").length > 0 && (
+                <Badge className="ml-1 bg-destructive text-destructive-foreground text-xs border-0 no-default-active-elevate">
+                  {verifications.filter((v) => v.status === "pending").length}
+                </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="pricing" data-testid="tab-pricing">
@@ -466,6 +495,7 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Photo</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead>Location</TableHead>
@@ -476,9 +506,24 @@ export default function AdminDashboard() {
                     </TableHeader>
                     <TableBody>
                       {requests.length === 0 ? (
-                        <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
                       ) : requests.map((req) => (
                         <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
+                          <TableCell>
+                            {req.imageUrl ? (
+                              <img
+                                src={req.imageUrl}
+                                alt="Customer photo"
+                                className="w-12 h-12 rounded-md object-cover cursor-pointer border border-border"
+                                onClick={() => setVerifyPreview(req.imageUrl)}
+                                data-testid={`img-request-photo-${req.id}`}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+                                <Image className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
                           <TableCell className="max-w-xs"><p className="text-sm line-clamp-2">{req.description}</p></TableCell>
                           <TableCell>
@@ -673,6 +718,141 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* ── Verifications ── */}
+          <TabsContent value="verifications" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" /> Fundi Verification Submissions
+                  <Badge variant="secondary" className="ml-auto">{verifications.length} total</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {verifications.length === 0 ? (
+                  <p className="text-center py-12 text-muted-foreground">No verification submissions yet</p>
+                ) : verifications.map((v) => (
+                  <div key={v.userId} className="border rounded-lg p-4 space-y-4" data-testid={`card-verification-${v.userId}`}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="font-semibold">{v.workerName}</p>
+                        <p className="text-xs text-muted-foreground">{v.email} · {v.phone}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Submitted: {new Date(v.submittedAt).toLocaleString("en-KE")}
+                        </p>
+                      </div>
+                      <Badge className={`border-0 text-xs ${
+                        v.status === "approved" ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                        : v.status === "rejected" ? "bg-destructive/10 text-destructive"
+                        : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                      }`}>
+                        {v.status === "pending" ? "Under Review" : v.status}
+                      </Badge>
+                    </div>
+
+                    {/* ID Photos — Admin only */}
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> NATIONAL ID / PASSPORT (Admin Only)
+                      </p>
+                      <div className="flex gap-3">
+                        {v.idFront ? (
+                          <div className="space-y-1">
+                            <img
+                              src={v.idFront}
+                              alt="ID Front"
+                              className="w-28 h-20 object-cover rounded-md border cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setVerifyPreview(v.idFront)}
+                              data-testid={`img-id-front-${v.userId}`}
+                            />
+                            <p className="text-xs text-muted-foreground text-center">Front</p>
+                          </div>
+                        ) : <div className="w-28 h-20 bg-muted rounded-md flex items-center justify-center text-xs text-muted-foreground">No front</div>}
+                        {v.idBack ? (
+                          <div className="space-y-1">
+                            <img
+                              src={v.idBack}
+                              alt="ID Back"
+                              className="w-28 h-20 object-cover rounded-md border cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setVerifyPreview(v.idBack)}
+                              data-testid={`img-id-back-${v.userId}`}
+                            />
+                            <p className="text-xs text-muted-foreground text-center">Back</p>
+                          </div>
+                        ) : <div className="w-28 h-20 bg-muted rounded-md flex items-center justify-center text-xs text-muted-foreground">No back</div>}
+                      </div>
+                    </div>
+
+                    {/* Work Samples */}
+                    {v.workSamples.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                          <Image className="w-3.5 h-3.5" /> WORK SAMPLES ({v.workSamples.length})
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {v.workSamples.map((sample, i) => (
+                            <div key={i} className="space-y-1">
+                              <img
+                                src={sample}
+                                alt={`Work sample ${i + 1}`}
+                                className="w-20 h-20 object-cover rounded-md border cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setVerifyPreview(sample)}
+                                data-testid={`img-sample-${v.userId}-${i}`}
+                              />
+                              <p className="text-xs text-muted-foreground text-center">Photo {i + 1}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Review actions */}
+                    {v.status === "pending" && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Rejection note (optional)</Label>
+                          <Input
+                            placeholder="Reason for rejection…"
+                            value={rejectNote[v.userId] ?? ""}
+                            onChange={(e) => setRejectNote((p) => ({ ...p, [v.userId]: e.target.value }))}
+                            className="text-sm"
+                            data-testid={`input-reject-note-${v.userId}`}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-1 bg-green-600 hover:bg-green-700"
+                            onClick={() => reviewVerification.mutate({ userId: v.userId, status: "approved" })}
+                            disabled={reviewVerification.isPending}
+                            data-testid={`button-approve-${v.userId}`}
+                          >
+                            <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 gap-1"
+                            onClick={() => reviewVerification.mutate({ userId: v.userId, status: "rejected", reviewNote: rejectNote[v.userId] })}
+                            disabled={reviewVerification.isPending}
+                            data-testid={`button-reject-${v.userId}`}
+                          >
+                            <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {v.status !== "pending" && v.reviewedAt && (
+                      <p className="text-xs text-muted-foreground border-t pt-2">
+                        Reviewed: {new Date(v.reviewedAt).toLocaleString("en-KE")}
+                        {v.reviewNote && ` — ${v.reviewNote}`}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ── Pricing Config ── */}
           <TabsContent value="pricing">
             <Card>
@@ -741,6 +921,20 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!verifyPreview} onOpenChange={() => setVerifyPreview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-primary" /> Image Preview
+            </DialogTitle>
+          </DialogHeader>
+          {verifyPreview && (
+            <img src={verifyPreview} alt="Preview" className="w-full rounded-lg object-contain max-h-[70vh]" />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Reply Dialog */}
       <Dialog open={!!replyOpen} onOpenChange={() => setReplyOpen(null)}>

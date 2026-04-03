@@ -361,6 +361,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(doc ?? null);
   });
 
+  // Customer/public: get a worker's work samples (by worker table ID)
+  app.get("/api/workers/:workerId/work-samples", async (req, res) => {
+    const worker = await storage.getWorker(req.params.workerId);
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+    const verification = await storage.getWorkerVerificationByEmail(worker.email);
+    if (!verification || verification.status !== "approved") {
+      return res.json({ workSamples: [], workerName: worker.name });
+    }
+    res.json({ workSamples: verification.workSamples, workerName: worker.name });
+  });
+
+  // Fundi marks themselves as on the way with estimated arrival
+  app.patch("/api/job-requests/:id/on-the-way", async (req, res) => {
+    const { estimatedArrival } = req.body;
+    const updated = await storage.updateJobRequest(req.params.id, {
+      workerOnWay: 1,
+      estimatedArrival: estimatedArrival ?? null,
+    });
+    if (!updated) return res.status(404).json({ error: "Job request not found" });
+    res.json(updated);
+  });
+
   // Admin gets all verifications
   app.get("/api/admin/verifications", async (_req, res) => {
     res.json(await storage.getAllWorkerVerifications());

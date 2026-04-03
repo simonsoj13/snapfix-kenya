@@ -54,6 +54,8 @@ export const jobRequests = pgTable("job_requests", {
   quotedAmount: real("quoted_amount"),
   depositAmount: real("deposit_amount"),
   workerContactShown: integer("worker_contact_shown").notNull().default(0),
+  workerOnWay: integer("worker_on_way").notNull().default(0),
+  estimatedArrival: text("estimated_arrival"),
 });
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
