@@ -79,6 +79,7 @@ export class MemStorage implements IStorage {
   private supportTickets: Map<string, SupportTicket> = new Map();
   private pricingConfig: Map<string, PricingConfig> = new Map();
   private workerVerifications: Map<string, WorkerVerification> = new Map();
+  private seededWorkerIds: string[] = [];
   _resetCodes: Record<string, string> = {};
 
   constructor() {
@@ -88,6 +89,7 @@ export class MemStorage implements IStorage {
     this.seedTransactions();
     this.seedSupportTickets();
     this.seedPricingConfig();
+    this.seedDemoCustomer();
   }
 
   private seedAdmin() {
@@ -118,6 +120,7 @@ export class MemStorage implements IStorage {
     mockWorkers.forEach((w) => {
       const id = randomUUID();
       this.workers.set(id, { ...w, id, verified: w.verified ?? 0, availableNow: w.availableNow ?? 0 });
+      this.seededWorkerIds.push(id);
       // Create a linked user account for each seeded worker so they can log in
       const userId = randomUUID();
       this.users.set(userId, {
@@ -237,6 +240,92 @@ export class MemStorage implements IStorage {
       { category: "General",    baseMin: 2000, baseMax: 6000, depositPercent: 0.3 },
     ];
     configs.forEach((c) => this.pricingConfig.set(c.category, c));
+  }
+
+  private seedDemoCustomer() {
+    // ── Demo customer account ─────────────────────────────────────────────
+    const customerId = randomUUID();
+    this.users.set(customerId, {
+      id: customerId,
+      name: "Jane Mwende",
+      email: "demo@snapfix.ke",
+      phone: "+254711000099",
+      password: "Demo@2024",
+      role: "customer",
+      idDocUrl: null,
+      workSampleUrls: null,
+      walletBalance: 0,
+      idVerified: 0,
+    });
+
+    // Use first two seeded workers (John Mwangi - Plumbing, Sarah Achieng - Electrical)
+    const plumberId  = this.seededWorkerIds[0] ?? null;
+    const electricId = this.seededWorkerIds[1] ?? null;
+    const carpenterId = this.seededWorkerIds[3] ?? null;
+
+    const base = {
+      userId: customerId,
+      imageUrl: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=200",
+      location: "Lavington, Nairobi",
+      area: "lavington",
+      preferredDate: "2026-04-05",
+      isNow: 0,
+      workerContactShown: 1,
+    };
+
+    // Job 1 — deposit paid, fundi assigned, on the way ─────────────────────
+    const job1Id = randomUUID();
+    this.jobRequests.set(job1Id, {
+      id: job1Id,
+      ...base,
+      workerId: plumberId,
+      category: "Plumbing",
+      description: "Kitchen sink is leaking under the cabinet. Water pooling on the floor. Need urgent fix.",
+      status: "deposit-paid",
+      budget: 5000,
+      quotedMin: 4000,
+      quotedMax: 6000,
+      quotedAmount: 5000,
+      depositAmount: 1500,
+      workerOnWay: 1,
+      estimatedArrival: "20 minutes",
+    });
+
+    // Job 2 — fundi has arrived, work in progress ─────────────────────────
+    const job2Id = randomUUID();
+    this.jobRequests.set(job2Id, {
+      id: job2Id,
+      ...base,
+      workerId: electricId,
+      category: "Electrical",
+      description: "Circuit breaker keeps tripping when using the microwave. Suspect wiring issue in the kitchen.",
+      status: "fundi-arrived",
+      budget: 7000,
+      quotedMin: 5500,
+      quotedMax: 8500,
+      quotedAmount: 7000,
+      depositAmount: 2100,
+      workerOnWay: 1,
+      estimatedArrival: null,
+    });
+
+    // Job 3 — job complete, balance payment due ───────────────────────────
+    const job3Id = randomUUID();
+    this.jobRequests.set(job3Id, {
+      id: job3Id,
+      ...base,
+      workerId: carpenterId,
+      category: "Carpentry",
+      description: "Two bedroom doors not closing properly. Hinges loose and frame slightly warped.",
+      status: "balance-due",
+      budget: 4000,
+      quotedMin: 3000,
+      quotedMax: 5000,
+      quotedAmount: 4000,
+      depositAmount: 1200,
+      workerOnWay: 0,
+      estimatedArrival: null,
+    });
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────

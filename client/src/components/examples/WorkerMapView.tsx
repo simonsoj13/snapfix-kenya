@@ -18,6 +18,8 @@ const mockWorkers: Worker[] = [
     verified: 1,
     profileImage: "/api/placeholder.jpg",
     availableNow: 1,
+    email: "",
+    phone: "",
   },
   {
     id: "2",
@@ -35,6 +37,8 @@ const mockWorkers: Worker[] = [
     verified: 1,
     profileImage: "/api/placeholder.jpg",
     availableNow: 0,
+    email: "",
+    phone: "",
   },
 ];
 
