@@ -399,5 +399,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Temporary seed endpoint for demo data
+  app.post("/api/seed-demo", async (_req, res) => {
+    try {
+      await storage.seedDemoCustomer();
+      res.json({ success: true, message: "Demo data seeded successfully" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  // Temporary seed endpoint for demo data
+  app.post("/api/seed-demo", async (_req, res) => {
+    try {
+      await storage.seedDemoCustomer();
+      res.json({ success: true, message: "Demo data seeded successfully" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
   return httpServer;
 }
