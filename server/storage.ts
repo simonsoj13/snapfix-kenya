@@ -152,7 +152,7 @@ export class MemStorage implements IStorage {
       ]},
     ];
 
-    reviewData.forEach(({ customerName: _, reviews: rList }) => {
+    reviewData.forEach(({ reviews: rList }) => {
       rList.forEach((r) => {
         const id = randomUUID();
         const wId = randomUUID();
@@ -255,6 +255,7 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      role: insertUser.role ?? "customer",
       idDocUrl: insertUser.idDocUrl ?? null,
       workSampleUrls: insertUser.workSampleUrls ?? null,
       walletBalance: 0,

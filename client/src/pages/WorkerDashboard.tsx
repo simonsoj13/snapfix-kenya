@@ -150,7 +150,7 @@ export default function WorkerDashboard() {
   const activeJobs    = jobs.filter((j) => ["in-progress", "fundi-arrived", "balance-due"].includes(j.status));
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
-  const walletBalance = user?.walletBalance ?? 6180;
+  const walletBalance = 6180;
   const pendingPayout = 3500;
 
   const uploadedCount = [idFront, idBack, ...samples.filter(Boolean)].length;
