@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,14 @@ import type { JobRequest } from "@shared/schema";
 import snapfixLogo from "/snapfix-logo.jpg";
 
 const STATUS_BADGE: Record<string, { label: string; class: string }> = {
-  pending:        { label: "Pending",      class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
-  quoted:         { label: "Quoted",       class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  "deposit-paid": { label: "Deposit Paid", class: "bg-primary/10 text-primary" },
-  "in-progress":  { label: "In Progress",  class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
-  completed:      { label: "Completed",    class: "bg-green-500/10 text-green-600 dark:text-green-400" },
-  cancelled:      { label: "Cancelled",    class: "bg-destructive/10 text-destructive" },
+  pending:          { label: "Pending",       class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
+  quoted:           { label: "Quoted",        class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  "deposit-paid":   { label: "Deposit Paid",  class: "bg-primary/10 text-primary" },
+  "fundi-arrived":  { label: "Fundi Arrived", class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  "in-progress":    { label: "In Progress",   class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  "balance-due":    { label: "Balance Due",   class: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+  completed:        { label: "Completed",     class: "bg-green-500/10 text-green-600 dark:text-green-400" },
+  cancelled:        { label: "Cancelled",     class: "bg-destructive/10 text-destructive" },
 };
 
 const MOCK_WALLET = [
@@ -145,7 +147,7 @@ export default function WorkerDashboard() {
   });
 
   const availableJobs = jobs.filter((j) => ["pending", "quoted", "deposit-paid"].includes(j.status));
-  const activeJobs    = jobs.filter((j) => j.status === "in-progress");
+  const activeJobs    = jobs.filter((j) => ["in-progress", "fundi-arrived", "balance-due"].includes(j.status));
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
   const walletBalance = user?.walletBalance ?? 6180;
@@ -378,7 +380,7 @@ export default function WorkerDashboard() {
                             <Button size="sm" className="flex-1 gap-1" onClick={handleAcceptJob} data-testid={`button-accept-job-${job.id}`}>
                               Accept Job <ArrowRight className="w-3.5 h-3.5" />
                             </Button>
-                            {(job.status === "deposit-paid" || job.status === "in-progress") && (
+                            {job.status === "deposit-paid" && job.workerOnWay !== 1 && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -416,7 +418,7 @@ export default function WorkerDashboard() {
                           <Badge className={(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).class + " border-0 text-xs"}>
                             {(STATUS_BADGE[job.status] ?? STATUS_BADGE["pending"]).label}
                           </Badge>
-                          {(job.status === "deposit-paid" || job.status === "in-progress") && (job as any).workerOnWay !== 1 && (
+                          {job.status === "deposit-paid" && job.workerOnWay !== 1 && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -426,7 +428,7 @@ export default function WorkerDashboard() {
                               <Navigation className="w-3 h-3" /> On My Way
                             </Button>
                           )}
-                          {(job as any).workerOnWay === 1 && (
+                          {job.workerOnWay === 1 && (
                             <span className="text-xs text-primary font-medium flex items-center gap-1">
                               <Navigation className="w-3 h-3" /> Heading there
                             </span>
