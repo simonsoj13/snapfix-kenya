@@ -395,6 +395,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const updated = await storage.upsertWorkerVerification(req.params.userId, {
       status, reviewNote, reviewedAt: new Date().toISOString(),
     });
+    if (status === "approved") {
+      const user = await storage.getUserById(req.params.userId);
+      if (user) {
+        await storage.createWorkerFromVerification(updated, user);
+      }
+    }
     res.json(updated);
   });
 

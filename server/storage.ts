@@ -1,3 +1,4 @@
+import { DatabaseStorage } from "./db-storage";
 import {
   type User, type InsertUser,
   type Worker, type InsertWorker,
@@ -67,6 +68,7 @@ export interface IStorage {
   updateSupportTicket(id: string, updates: Partial<SupportTicket>): Promise<SupportTicket | undefined>;
 
   getPricingConfig(): Promise<PricingConfig[]>;
+  createWorkerFromVerification(verification: WorkerVerification, user: any): Promise<any>;
   updatePricingConfig(category: string, config: Partial<PricingConfig>): Promise<PricingConfig | undefined>;
 }
 
@@ -531,6 +533,8 @@ export class MemStorage implements IStorage {
   // ── Pricing Config ─────────────────────────────────────────────────────────
   async getPricingConfig() { return Array.from(this.pricingConfig.values()); }
 
+  async createWorkerFromVerification(verification: WorkerVerification, user: any) { return null; }
+
   async updatePricingConfig(category: string, config: Partial<PricingConfig>): Promise<PricingConfig | undefined> {
     const current = this.pricingConfig.get(category);
     if (!current) return undefined;
@@ -540,4 +544,6 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+
+
+export const storage = new DatabaseStorage();

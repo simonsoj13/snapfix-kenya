@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +32,7 @@ const AREAS = [
   { id: "compound",     label: "Compound" },
 ];
 
-const STEPS = ["Photo", "Describe", "Quote", "Worker", "Schedule", "Booked", "Payment"];
+const STEPS = ["Photo", "Describe", "Quote", "Worker", "Schedule", "Booked"];
 
 function StepBar({ current }: { current: number }) {
   return (
@@ -98,7 +99,7 @@ function StkPushDialog({
         </DialogHeader>
         <div className="space-y-5">
           <div className="bg-green-500/10 rounded-md p-4 text-center space-y-1">
-            <p className="text-xs text-muted-foreground">Payment request sent to</p>
+            <p className="text-xs text-muted-foreground">Booking confirmed! Click below to view your requests</p>
             <p className="font-semibold">{phone}</p>
             <p className="text-2xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">Balance paid after service completion</p>
@@ -652,7 +653,6 @@ export default function BookingFlow() {
               className="w-full"
               onClick={handleConfirmDeposit}
               disabled={depositLoading || (!isNow && (!scheduledDate || !scheduledTime))}
-              data-testid="button-confirm-deposit"
             >
               {depositLoading ? "Confirming…" : `Pay Deposit KES ${quote.deposit.toLocaleString()} via M-Pesa`}
             </Button>
@@ -709,7 +709,7 @@ export default function BookingFlow() {
               open={showStk}
               amount={quote?.deposit ?? 0}
               phone={user?.phone ?? ""}
-              onSuccess={() => { setShowStk(false); setStep(6); }}
+              onSuccess={() => { setShowStk(false); navigate("/requests"); }}
               onClose={() => setShowStk(false)}
             />
           </div>
