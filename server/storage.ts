@@ -28,6 +28,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserWallet(id: string, amount: number): Promise<User | undefined>;
   updateUserPassword(id: string, newPassword: string): Promise<User | undefined>;
+  updateUserProfile(id: string, updates: Partial<User>): Promise<User | undefined>;
 
   getWorkerVerification(userId: string): Promise<WorkerVerification | undefined>;
   getWorkerVerificationByEmail(email: string): Promise<WorkerVerification | undefined>;
@@ -534,6 +535,14 @@ export class MemStorage implements IStorage {
   async getPricingConfig() { return Array.from(this.pricingConfig.values()); }
 
   async createWorkerFromVerification(verification: WorkerVerification, user: any) { return null; }
+
+  async updateUserProfile(id: string, updates: any) {
+    const u = this.users.get(id);
+    if (!u) return undefined;
+    const updated = { ...u, ...updates };
+    this.users.set(id, updated);
+    return updated;
+  }
 
   async updatePricingConfig(category: string, config: Partial<PricingConfig>): Promise<PricingConfig | undefined> {
     const current = this.pricingConfig.get(category);

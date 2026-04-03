@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { analyzeRepairImage } from "./ai";
+import { sendPasswordResetCode } from "./email";
 import { insertJobRequestSchema, insertUserSchema, loginSchema, adminLoginSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -90,11 +91,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Always return success (don't reveal if user exists)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     if (user) {
-      // In production: send SMS/email. Here we return the code in dev mode only.
       (storage as any)._resetCodes = (storage as any)._resetCodes || {};
       (storage as any)._resetCodes[user.id] = code;
+      if (!isPhone) {
+        try { await sendPasswordResetCode(user.email, code); } catch(e) { console.error("Email error:", e); }
+      }
     }
-    res.json({ success: true, devCode: user ? code : null, message: "If an account exists, a reset code has been sent." });
+    res.json({ success: true, message: "If an account exists, a reset code has been sent." });
   });
 
   app.post("/api/auth/reset-password", async (req, res) => {
@@ -401,6 +404,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createWorkerFromVerification(updated, user);
       }
     }
+    res.json(updated);
+  });
+
+
+  // Get current user
+  app.get("/api/auth/me", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const user = await storage.getUserById(userId);
+    if (!user) return res.status(404).json({ error: "Not found" });
+    res.json(user);
+  });
+
+  // Update user profile
+  app.patch("/api/user/profile", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { name, email, phone, oldPassword, newPassword } = req.body;
+    const user = await storage.getUserById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (newPassword) {
+      if (user.password !== oldPassword) return res.status(400).json({ error: "Current password is incorrect" });
+      await storage.updateUserPassword(userId, newPassword);
+      return res.json({ success: true });
+    }
+    const updates: any = {};
+    if (name) updates.name = name;
+    if (email) updates.email = email;
+    if (phone) updates.phone = phone;
+    const updated = await storage.updateUserProfile(userId, updates);
     res.json(updated);
   });
 

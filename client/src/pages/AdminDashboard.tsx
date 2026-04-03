@@ -24,7 +24,7 @@ import type { Worker, JobRequest } from "@shared/schema";
 import {
   Users, Briefcase, Star, TrendingUp, MapPin, CheckCircle2, Clock, XCircle, Activity,
   ToggleLeft, ToggleRight, LogOut, CreditCard, RotateCcw, HeadphonesIcon,
-  Settings, MessageSquare, FileCheck, ThumbsUp, ThumbsDown, Eye, ShieldCheck, Image,
+  Settings, MessageSquare, FileCheck, ThumbsUp, ThumbsDown, Eye, ShieldCheck, Image, User,
 } from "lucide-react";
 import snapfixLogo from "/snapfix-logo.jpg";
 
@@ -94,8 +94,22 @@ const PRIORITY_BADGE: Record<string, string> = {
 
 export default function AdminDashboard() {
   const [_, navigate] = useLocation();
+  const [showProfile, setShowProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editOldPassword, setEditOldPassword] = useState("");
+  const [editNewPassword, setEditNewPassword] = useState("");
   const { toast } = useToast();
   const { logout } = useAuth();
+  const saveProfile = async () => {
+    const body = editNewPassword 
+      ? { oldPassword: editOldPassword, newPassword: editNewPassword }
+      : { name: editName };
+    const stored = localStorage.getItem("snapfix_user") || localStorage.getItem("fixit_user") || "{}"; const adminId = JSON.parse(stored)?.id ?? "";
+    await fetch("/api/user/profile", { method: "PATCH", headers: { "Content-Type": "application/json", "x-user-id": adminId }, body: JSON.stringify(body) });
+    toast({ title: "Profile updated!" });
+    setShowProfile(false);
+    setEditOldPassword(""); setEditNewPassword("");
+  };
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [replyOpen, setReplyOpen] = useState<SupportTicket | null>(null);
@@ -247,6 +261,9 @@ export default function AdminDashboard() {
               <span className="text-xs text-muted-foreground hidden sm:inline">Live</span>
             </div>
             <Badge variant="secondary" className="hidden sm:inline-flex">Admin</Badge>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShowProfile(true)} data-testid="button-admin-profile">
+              <User className="w-4 h-4" /> Profile
+            </Button>
             <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { logout(); navigate("/admin-login"); }} data-testid="button-admin-logout">
               <LogOut className="w-4 h-4" /> Logout
             </Button>
@@ -968,6 +985,19 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showProfile} onOpenChange={setShowProfile}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Admin Profile</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div><Label>Name</Label><Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1" /></div>
+            
+            <div><Label>Current Password</Label><Input type="password" value={editOldPassword} onChange={e => setEditOldPassword(e.target.value)} className="mt-1" /></div>
+            <div><Label>New Password (leave blank to keep)</Label><Input type="password" value={editNewPassword} onChange={e => setEditNewPassword(e.target.value)} className="mt-1" /></div>
+            <Button className="w-full" onClick={saveProfile}>Save Changes</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

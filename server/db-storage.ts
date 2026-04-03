@@ -53,6 +53,10 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(users).set({ walletBalance: (user.walletBalance ?? 0) + amount }).where(eq(users.id, id)).returning();
     return updated;
   }
+  async updateUserProfile(id: string, updates: any) {
+    const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return updated;
+  }
   async updateUserPassword(id: string, newPassword: string) {
     const [updated] = await db.update(users).set({ password: newPassword }).where(eq(users.id, id)).returning();
     return updated;
