@@ -80,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Forgot password — simulated (sends code, then allows reset)
+  // Forgot password — sends code via email when RESEND_API_KEY is set, otherwise returns code in response
   app.post("/api/auth/forgot-password", async (req, res) => {
     const { credential } = req.body;
     if (!credential) return res.status(400).json({ error: "Email or phone required" });
@@ -90,14 +90,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       : await storage.getUserByEmail(credential);
     // Always return success (don't reveal if user exists)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    let emailSent = false;
     if (user) {
       (storage as any)._resetCodes = (storage as any)._resetCodes || {};
       (storage as any)._resetCodes[user.id] = code;
-      if (!isPhone) {
-        try { await sendPasswordResetCode(user.email, code); } catch(e) { console.error("Email error:", e); }
+      // Try to send email if RESEND_API_KEY is configured and credential is an email
+      if (!isPhone && process.env.RESEND_API_KEY) {
+        try {
+          await sendPasswordResetCode(user.email, code);
+          emailSent = true;
+        } catch(e) {
+          console.error("Email send error:", e);
+        }
       }
     }
-    res.json({ success: true, message: "If an account exists, a reset code has been sent." });
+    // Return devCode when email isn't configured so users can still reset
+    const hasEmailService = !!process.env.RESEND_API_KEY;
+    res.json({
+      success: true,
+      message: emailSent
+        ? "A reset code has been sent to your email."
+        : "A reset code has been generated.",
+      // Show code in response when email isn't configured (or for phone-based reset)
+      ...((!hasEmailService || isPhone) && user ? { devCode: code } : {}),
+    });
   });
 
   app.post("/api/auth/reset-password", async (req, res) => {
@@ -119,11 +135,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/admin-login", async (req, res) => {
     try {
       const { email, password } = adminLoginSchema.parse(req.body);
-      const user = await storage.getUserByEmail(email);
-      if (!user || user.password !== password || user.role !== "admin") {
+      const adminEmail = process.env.ADMIN_EMAIL || "admin@snapfix.ke";
+      const adminPassword = process.env.ADMIN_PASSWORD || "Admin@2024";
+      // Check against env-var credentials (works in any environment, memory-independent)
+      if (email.toLowerCase() !== adminEmail.toLowerCase() || password !== adminPassword) {
         return res.status(401).json({ error: "Invalid admin credentials" });
       }
-      const { password: _, ...safe } = user;
+      // Build a safe admin user object from env vars + storage fallback
+      const storedUser = await storage.getUserByEmail(email);
+      const adminUser = storedUser ?? {
+        id: "admin",
+        name: "Snap-Fix Admin",
+        email: adminEmail,
+        phone: "+254700000000",
+        role: "admin",
+        idDocUrl: null,
+        workSampleUrls: null,
+        walletBalance: 0,
+        idVerified: 1,
+      };
+      const { password: _, ...safe } = adminUser as any;
       res.json(safe);
     } catch (err: any) {
       res.status(400).json({ error: err.message || "Admin login failed" });
@@ -438,26 +469,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
-
-  // Temporary seed endpoint for demo data
-  app.post("/api/seed-demo", async (_req, res) => {
-    try {
-      await storage.seedDemoCustomer();
-      res.json({ success: true, message: "Demo data seeded successfully" });
-    } catch (error) {
-      res.status(500).json({ success: false, error: String(error) });
-    }
-  });
-
-  // Temporary seed endpoint for demo data
-  app.post("/api/seed-demo", async (_req, res) => {
-    try {
-      await storage.seedDemoCustomer();
-      res.json({ success: true, message: "Demo data seeded successfully" });
-    } catch (error) {
-      res.status(500).json({ success: false, error: String(error) });
-    }
-  });
 
   return httpServer;
 }

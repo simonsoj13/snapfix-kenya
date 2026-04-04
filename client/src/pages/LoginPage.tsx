@@ -58,7 +58,12 @@ export default function LoginPage() {
     const data = await res.json();
     setDevCode(data.devCode);
     setForgotStep("code");
-    toast({ title: "Reset code sent!", description: data.devCode ? `Dev code: ${data.devCode}` : "Check your phone/email." });
+    toast({
+      title: "Reset code ready!",
+      description: data.devCode
+        ? "Your code is shown below. Copy it before closing."
+        : data.message ?? "Check your email or phone.",
+    });
   };
 
   const handleForgotReset = async () => {
@@ -420,13 +425,17 @@ export default function LoginPage() {
           {forgotStep === "code" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                A 6-digit code has been sent to <strong>{forgotCred}</strong>.
-                {devCode && (
-                  <span className="block mt-1 text-xs bg-muted rounded px-2 py-1 font-mono">
-                    Dev mode code: <strong>{devCode}</strong>
-                  </span>
-                )}
+                {devCode
+                  ? "Copy the code below and enter it to reset your password."
+                  : <>A reset code was sent to <strong>{forgotCred}</strong>. Check your inbox.</>}
               </p>
+              {devCode && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Your Reset Code</p>
+                  <p className="text-3xl font-bold tracking-widest text-primary font-mono">{devCode}</p>
+                  <p className="text-xs text-muted-foreground">Copy this code — it expires in 10 minutes</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="reset-code">Reset Code</Label>
                 <Input
