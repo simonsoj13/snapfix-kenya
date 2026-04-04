@@ -32,12 +32,7 @@ const STATUS_BADGE: Record<string, { label: string; class: string }> = {
   cancelled:        { label: "Cancelled",     class: "bg-destructive/10 text-destructive" },
 };
 
-const MOCK_WALLET = [
-  { id: "1", label: "Plumbing job — Alice W.",    amount: 3500, type: "credit", date: "2026-03-28" },
-  { id: "2", label: "Withdrawal to M-Pesa",       amount: 2000, type: "debit",  date: "2026-03-27" },
-  { id: "3", label: "Electrical job — James K.",  amount: 5200, type: "credit", date: "2026-03-25" },
-  { id: "4", label: "Platform fee (10%)",          amount: 520,  type: "debit",  date: "2026-03-25" },
-];
+
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -115,13 +110,16 @@ function SampleUploadSlot({
 }
 
 export default function WorkerDashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
+  const qc = useQueryClient();
   const [_, navigate] = useLocation();
+  
   const { toast } = useToast();
-
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
+
+
 
   const [etaOpen, setEtaOpen] = useState(false);
   const [etaJobId, setEtaJobId] = useState<string | null>(null);
@@ -140,23 +138,37 @@ export default function WorkerDashboard() {
     enabled: !!user?.id,
   });
 
+  const { data: transactions = [] } = useQuery({
+    queryKey: ["/api/transactions/worker", user?.id],
+    queryFn: () => fetch(`/api/transactions/worker/${user?.id}`).then(r => r.json()),
+    enabled: !!user?.id,
+  });
+
+  const { data: walletUser } = useQuery({
+    queryKey: ["/api/user", user?.id],
+    queryFn: () => fetch(`/api/user/${user?.id}`).then(r => r.json()),
+    enabled: !!user?.id,
+  });
+
   const { data: verifyStatus, refetch: refetchVerify } = useQuery({
     queryKey: ["/api/workers/verify-docs", user?.id],
     queryFn: () => fetch(`/api/workers/verify-docs/${user?.id}`).then((r) => r.json()),
     enabled: !!user?.id,
   });
 
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (!user) { navigate("/login"); return null; }
+
   const availableJobs = jobs.filter((j) => ["pending", "quoted", "deposit-paid"].includes(j.status));
   const activeJobs    = jobs.filter((j) => ["in-progress", "fundi-arrived", "balance-due"].includes(j.status));
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
-  const walletBalance = 6180;
-  const pendingPayout = 3500;
+  const walletBalance = walletUser?.walletBalance ?? 0;
+  const pendingPayout = transactions.filter(t => t.status === "pending").reduce((sum, t) => sum + t.amount, 0);
 
   const uploadedCount = [idFront, idBack, ...samples.filter(Boolean)].length;
   const uploadProgress = Math.min(100, Math.round((uploadedCount / 7) * 100));
 
-  const queryClient = useQueryClient();
 
   const handleAcceptJob = () => {
     toast({ title: "Job accepted!", description: "Customer has been notified. Good luck!" });
@@ -170,7 +182,7 @@ export default function WorkerDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estimatedArrival: etaValue }),
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/worker", user?.id] });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/worker", user?.id] });
       toast({ title: "Customer notified!", description: `ETA sent: ${etaValue}` });
       setEtaOpen(false);
     } catch {
@@ -475,7 +487,7 @@ export default function WorkerDashboard() {
             </Card>
             <h3 className="text-sm font-semibold text-muted-foreground">TRANSACTION HISTORY</h3>
             <div className="space-y-2">
-              {MOCK_WALLET.map((tx) => (
+              {transactions.map((tx) => (
                 <Card key={tx.id}>
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between gap-2">
