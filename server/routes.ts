@@ -468,6 +468,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updated);
   });
 
+
+  // Fundi accepts a job
+  app.patch("/api/job-requests/:id/accept", async (req, res) => {
+    const job = await storage.updateJobRequest(req.params.id, { status: "deposit-paid" });
+    res.json(job);
+  });
+
+  // Fundi declines a job
+  app.patch("/api/job-requests/:id/decline", async (req, res) => {
+    const job = await storage.updateJobRequest(req.params.id, { status: "cancelled", workerId: null });
+    res.json(job);
+  });
+
+  // Customer confirms fundi arrived
+  app.patch("/api/job-requests/:id/arrived", async (req, res) => {
+    const job = await storage.updateJobRequest(req.params.id, { status: "fundi-arrived" });
+    res.json(job);
+  });
+
+  // Customer confirms work complete
+  app.patch("/api/job-requests/:id/complete", async (req, res) => {
+    const job = await storage.updateJobRequest(req.params.id, { status: "balance-due" });
+    res.json(job);
+  });
+
+  // Fundi toggle online/offline
+  app.patch("/api/workers/:id/availability", async (req, res) => {
+    const { availableNow } = req.body;
+    const worker = await storage.updateWorkerAvailability(req.params.id, availableNow);
+    res.json(worker);
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

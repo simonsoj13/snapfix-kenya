@@ -34,6 +34,27 @@ function StkPushDialog({
     onSuccess();
   };
 
+
+  const handleConfirmArrived = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/arrived`, { method: "PATCH" });
+      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/user"] });
+      toast({ title: "Confirmed!", description: "Fundi arrival confirmed." });
+    } catch {
+      toast({ title: "Failed", variant: "destructive" });
+    }
+  };
+
+  const handleConfirmComplete = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/complete`, { method: "PATCH" });
+      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/user"] });
+      toast({ title: "Work confirmed complete!", description: "Please pay the balance to finish." });
+    } catch {
+      toast({ title: "Failed", variant: "destructive" });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">

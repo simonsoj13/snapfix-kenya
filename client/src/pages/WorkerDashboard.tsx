@@ -170,8 +170,42 @@ export default function WorkerDashboard() {
   const uploadProgress = Math.min(100, Math.round((uploadedCount / 7) * 100));
 
 
-  const handleAcceptJob = () => {
-    toast({ title: "Job accepted!", description: "Customer has been notified. Good luck!" });
+  const handleAcceptJob = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/accept`, { method: "PATCH" });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/worker", user.id] });
+  } catch (error) {
+    console.error("Error accepting job:", error);
+  }
+};
+
+
+  const handleDeclineJob = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/decline`, { method: "PATCH" });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/worker", user.id] });
+      toast({ title: "Job declined" });
+    } catch {
+      toast({ title: "Failed", variant: "destructive" });
+    }
+  };
+
+  const handleToggleAvailability = async () => {
+    try {
+      const workerRes = await fetch(`/api/workers/search?specialty=`).then(r => r.json());
+      const myWorker = workerRes.find((w: any) => w.email === user.email);
+      if (!myWorker) return;
+      const newStatus = myWorker.availableNow === 1 ? 0 : 1;
+      await fetch(`/api/workers/${myWorker.id}/availability`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ availableNow: newStatus }),
+      });
+      toast({ title: newStatus === 1 ? "You are now Online" : "You are now Offline" });
+      qc.invalidateQueries({ queryKey: ["/api/user", user.id] });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
   };
 
   const handleMarkOnTheWay = async () => {
@@ -263,6 +297,9 @@ export default function WorkerDashboard() {
         <div className="flex items-center justify-between mb-4">
           <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-10 h-10 rounded-xl object-cover" />
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-white text-xs" onClick={handleToggleAvailability}>
+              <div className="w-2 h-2 rounded-full bg-green-400" />Online
+            </Button>
             <Badge className="bg-white/20 text-white border-0 text-xs">Fundi</Badge>
             <Button variant="ghost" size="icon" className="text-white" onClick={() => { logout(); navigate("/login"); }} data-testid="button-logout">
               <LogOut className="w-4 h-4" />
@@ -389,7 +426,7 @@ export default function WorkerDashboard() {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" className="flex-1 gap-1" onClick={handleAcceptJob} data-testid={`button-accept-job-${job.id}`}>
+                            <Button size="sm" className="flex-1 gap-1" onClick={() => handleAcceptJob(job.id)} data-testid={`button-accept-job-${job.id}`}>
                               Accept Job <ArrowRight className="w-3.5 h-3.5" />
                             </Button>
                             {job.status === "deposit-paid" && job.workerOnWay !== 1 && (
