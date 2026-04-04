@@ -48,4 +48,4 @@ integrations = ["javascript_mem_db:1.0.0", "javascript_openai:1.0.0"]
 ADMIN_EMAIL = "admin@snapfix.ke"
 ADMIN_PASSWORD = "Admin@2024"
 RESEND_API_KEY = "re_9RZ16bCt_EhUZAB1166cJPXDuzvVsWfNq"
-DATABASE_URL = "postgresql://postgres:password@172.31.103.227/heliumdb?sslmode=disable"
+DATABASE_URL = "postgresql://neondb_owner:npg_8I1ZsEBpgXuD@ep-damp-bonus-amzrozd2.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require"
