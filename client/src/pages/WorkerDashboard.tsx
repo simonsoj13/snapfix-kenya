@@ -130,7 +130,11 @@ export default function WorkerDashboard() {
   const [idBack, setIdBack] = useState<string | null>(null);
   const [samples, setSamples] = useState<(string | null)[]>([null, null, null, null, null]);
   const [submitting, setSubmitting] = useState(false);
+  const [specialty, setSpecialty] = useState("");
+  const [bio, setBio] = useState("");
+  const [yearsExp, setYearsExp] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
   const { data: jobs = [], isLoading } = useQuery<JobRequest[]>({
     queryKey: ["/api/job-requests/worker", user?.id],
@@ -192,17 +196,14 @@ export default function WorkerDashboard() {
 
   const handleToggleAvailability = async () => {
     try {
-      const workerRes = await fetch(`/api/workers/search?specialty=`).then(r => r.json());
-      const myWorker = workerRes.find((w: any) => w.email === user.email);
-      if (!myWorker) return;
-      const newStatus = myWorker.availableNow === 1 ? 0 : 1;
-      await fetch(`/api/workers/${myWorker.id}/availability`, {
+      const newStatus = isOnline ? 0 : 1;
+      await fetch(`/api/workers/${user.id}/availability`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ availableNow: newStatus }),
       });
-      toast({ title: newStatus === 1 ? "You are now Online" : "You are now Offline" });
-      qc.invalidateQueries({ queryKey: ["/api/user", user.id] });
+      setIsOnline(!isOnline);
+      toast({ title: newStatus === 1 ? "You are now Online 🟢" : "You are now Offline 🔴" });
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
     }
@@ -298,7 +299,8 @@ export default function WorkerDashboard() {
           <img src={snapfixLogo} alt="Snap-Fix Kenya" className="w-10 h-10 rounded-xl object-cover" />
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="gap-1.5 text-white text-xs" onClick={handleToggleAvailability}>
-              <div className="w-2 h-2 rounded-full bg-green-400" />Online
+              <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-red-400"}`} />
+              {isOnline ? "Online" : "Offline"}
             </Button>
             <Badge className="bg-white/20 text-white border-0 text-xs">Fundi</Badge>
             <Button variant="ghost" size="icon" className="text-white" onClick={() => { logout(); navigate("/login"); }} data-testid="button-logout">
@@ -404,7 +406,7 @@ export default function WorkerDashboard() {
                               <img
                                 src={job.imageUrl}
                                 alt="Customer photo"
-                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0 cursor-pointer border border-border"
+                                className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer border-2 border-primary/20 shadow-md"
                                 onClick={() => setPreviewImg(job.imageUrl)}
                                 data-testid={`img-job-photo-${job.id}`}
                               />
@@ -586,12 +588,36 @@ export default function WorkerDashboard() {
             {/* ID Upload */}
             <Card>
               <CardContent className="py-4 space-y-4">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold">National ID / Passport</h3>
-                  {idFront && idBack && <Badge className="bg-green-500/10 text-green-600 border-0 text-xs ml-auto">Both uploaded</Badge>}
+                <div className="w-full space-y-4 mb-6">
+                  <h3 className="font-semibold text-base">Your Details</h3>
+                  <div className="w-full">
+                    <Label className="text-sm font-medium">Specialty</Label>
+                    <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full mt-1 border rounded-md p-2.5 text-sm bg-background block">
+                      <option value="">Select your specialty</option>
+                      <option>Plumbing</option>
+                      <option>Electrical</option>
+                      <option>Welding</option>
+                      <option>Carpentry</option>
+                      <option>HVAC</option>
+                      <option>Appliance</option>
+                      <option>Painting</option>
+                      <option>General</option>
+                    </select>
+                  </div>
+                  <div className="w-full">
+                    <Label className="text-sm font-medium">Years of Experience</Label>
+                    <Input type="number" value={yearsExp} onChange={e => setYearsExp(e.target.value)} placeholder="e.g. 5" className="mt-1 w-full" />
+                  </div>
+                  <div className="w-full">
+                    <Label className="text-sm font-medium">Brief Description</Label>
+                    <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Describe what you do and your expertise..." className="mt-1 w-full" rows={3} />
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">Upload a clear photo of the front and back of your ID.</p>
+                <div className="flex items-center justify-between mt-4 mb-1">
+                  <h3 className="font-semibold">National ID / Passport</h3>
+                  {idFront && idBack && <Badge className="bg-green-500/10 text-green-600 border-0 text-xs">Both uploaded</Badge>}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Upload a clear photo of the front and back of your ID.</p>
                 <div className="grid grid-cols-2 gap-3">
                   <ImageUploadSlot label="Front Side" value={idFront} onChange={setIdFront} testId="upload-id-front" />
                   <ImageUploadSlot label="Back Side"  value={idBack}  onChange={setIdBack}  testId="upload-id-back"  />

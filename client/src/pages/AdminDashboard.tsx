@@ -49,6 +49,7 @@ interface SupportTicket {
 interface PricingConfig { category: string; baseMin: number; baseMax: number; depositPercent: number; }
 interface WorkerVerification {
   userId: string; workerName: string; email: string; phone: string;
+  specialty?: string; bio?: string; yearsExperience?: number;
   idFront: string | null; idBack: string | null; workSamples: string[];
   status: "pending" | "approved" | "rejected";
   submittedAt: string; reviewedAt?: string; reviewNote?: string;
@@ -753,6 +754,8 @@ export default function AdminDashboard() {
                       <div>
                         <p className="font-semibold">{v.workerName}</p>
                         <p className="text-xs text-muted-foreground">{v.email} · {v.phone}</p>
+                        {v.specialty && <p className="text-xs text-primary font-medium mt-0.5">🔧 {v.specialty} · {v.yearsExperience ?? 0} yrs experience</p>}
+                        {v.bio && <p className="text-xs text-muted-foreground mt-0.5 italic">"{v.bio}"</p>}
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Submitted: {new Date(v.submittedAt).toLocaleString("en-KE")}
                         </p>

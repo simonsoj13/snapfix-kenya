@@ -115,7 +115,7 @@ function WorkSamplesSection({ workerId }: { workerId: string }) {
     enabled: !!workerId,
   });
 
-  if (!data || data.workSamples.length === 0) return null;
+  if (!data || !data.workSamples || data.workSamples.length === 0) return null;
 
   return (
     <>
@@ -304,8 +304,9 @@ export default function RequestsPage() {
                       <img
                         src={req.imageUrl}
                         alt="Your photo"
-                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-border"
+                        className="w-24 h-24 rounded-xl object-cover flex-shrink-0 border-2 border-primary/20 cursor-pointer shadow-md hover:opacity-90 transition-opacity"
                         data-testid={`img-request-photo-${req.id}`}
+                        
                       />
                     )}
 
@@ -454,5 +455,6 @@ export default function RequestsPage() {
         onClose={() => setPayBalanceJob(null)}
       />
     </div>
+
   );
 }

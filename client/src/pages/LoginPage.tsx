@@ -111,11 +111,7 @@ export default function LoginPage() {
       toast({ title: "Include country code", description: "e.g. +254712345678", variant: "destructive" });
       return;
     }
-    if (role === "worker") {
-      setRegStep("worker-docs");
-    } else {
-      handleRegisterSubmit();
-    }
+    handleRegisterSubmit();
   };
 
   const handleRegisterSubmit = async () => {

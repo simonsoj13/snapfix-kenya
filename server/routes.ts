@@ -226,7 +226,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/job-requests/worker/:workerId", async (req, res) => {
-    res.json(await storage.getJobRequestsByWorker(req.params.workerId));
+    // First try direct worker ID match
+    let jobs = await storage.getJobRequestsByWorker(req.params.workerId);
+    // If no jobs, find the worker by user ID and try their worker ID
+    if (jobs.length === 0) {
+      const user = await storage.getUserById(req.params.workerId);
+      if (user) {
+        const workers = await storage.getAllWorkers();
+        const worker = workers.find(w => w.email === user.email);
+        if (worker) {
+          jobs = await storage.getJobRequestsByWorker(worker.id);
+        }
+      }
+    }
+    res.json(jobs);
   });
 
   app.patch("/api/job-requests/:id/status", async (req, res) => {
@@ -373,13 +386,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Worker submits verification documents
   app.post("/api/workers/verify-docs", async (req, res) => {
     try {
-      const { userId, workerName, email, phone, idFront, idBack, workSamples } = req.body;
+      const { userId, workerName, email, phone, idFront, idBack, workSamples, specialty, bio, yearsExperience } = req.body;
       if (!userId) return res.status(400).json({ error: "userId required" });
       const doc = await storage.upsertWorkerVerification(userId, {
         userId, workerName, email, phone,
         idFront: idFront ?? null,
         idBack: idBack ?? null,
         workSamples: workSamples ?? [],
+        specialty: specialty ?? "General",
+        bio: bio ?? "",
+        yearsExperience: yearsExperience ?? 0,
         status: "pending",
         submittedAt: new Date().toISOString(),
       });

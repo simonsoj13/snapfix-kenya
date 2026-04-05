@@ -195,7 +195,9 @@ export default function BookingFlow() {
 
   const handleFileSelect = useCallback(async (file: File) => {
     setUploadedFile(file);
-    setImageUrl(URL.createObjectURL(file));
+    const reader = new FileReader();
+    reader.onload = () => setImageUrl(reader.result as string);
+    reader.readAsDataURL(file);
     setIsAnalyzing(true);
     try {
       const result = await analyzeImage(file);

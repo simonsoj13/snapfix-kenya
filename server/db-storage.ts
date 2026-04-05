@@ -162,19 +162,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorkerFromVerification(verification: WorkerVerification, user: any) {
-    const { randomUUID } = await import("crypto");
-    const id = randomUUID();
+    // Check if worker already exists
+    const existing = await db.select().from(workers).where(eq(workers.email, verification.email));
+    if (existing.length > 0) return existing[0];
     const [worker] = await db.insert(workers).values({
-      id,
+      id: user.id,
       name: verification.workerName,
-      specialty: "General",
+      specialty: verification.specialty ?? "General",
       hourlyRate: 1000,
       rating: 0,
       reviewCount: 0,
       distance: 0,
       location: "Nairobi",
-      bio: "",
-      yearsExperience: 0,
+      bio: verification.bio ?? "",
+      yearsExperience: verification.yearsExperience ?? 0,
       jobsCompleted: 0,
       responseTime: "< 1 hour",
       verified: 1,

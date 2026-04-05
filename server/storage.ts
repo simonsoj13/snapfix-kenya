@@ -16,6 +16,9 @@ export interface WorkerVerification {
   idBack: string | null;
   workSamples: string[];
   status: "pending" | "approved" | "rejected";
+  specialty?: string;
+  bio?: string;
+  yearsExperience?: number;
   submittedAt: string;
   reviewedAt?: string;
   reviewNote?: string;
