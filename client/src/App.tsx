@@ -16,6 +16,7 @@ import AdminLoginPage from "@/pages/AdminLoginPage";
 import LoginPage from "@/pages/LoginPage";
 import BookingFlow from "@/pages/BookingFlow";
 import WorkerDashboard from "@/pages/WorkerDashboard";
+import SupportPage from "@/pages/SupportPage";
 import NotFound from "@/pages/not-found";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -103,6 +104,7 @@ function Router() {
         <Route path="/search" component={SearchPage} />
         <Route path="/requests" component={RequestsPage} />
         <Route path="/profile" component={ProfilePage} />
+        <Route path="/support" component={SupportPage} />
         <Route component={NotFound} />
       </Switch>
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />

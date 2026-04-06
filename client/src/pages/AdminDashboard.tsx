@@ -542,7 +542,7 @@ export default function AdminDashboard() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell><Badge variant="secondary">{req.category}</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{req.category === "Emergency" ? "🚨 " : ""}{req.category}</Badge></TableCell>
                           <TableCell className="max-w-xs"><p className="text-sm line-clamp-2">{req.description}</p></TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">

@@ -30,7 +30,6 @@ const categories = [
   { icon: Wind,          name: "HVAC" },
   { icon: Cpu,           name: "Appliance" },
   { icon: PaintBucket,   name: "Painting" },
-  { icon: FlameKindling, name: "Emergency" },
 ];
 
 function getGreeting() {
@@ -173,7 +172,7 @@ export default function HomePage() {
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => navigate("/book")}
+            onClick={() => navigate("/book" + (selectedCategory ? "?category=" + selectedCategory : ""))}
             data-testid="button-start-booking"
             className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md hover-elevate active-elevate-2"
           >
@@ -215,9 +214,33 @@ export default function HomePage() {
                 icon={c.icon}
                 name={c.name}
                 isSelected={selectedCategory === c.name}
-                onClick={() => setSelectedCategory((p) => p === c.name ? null : c.name)}
+                onClick={() => navigate("/book?category=" + encodeURIComponent(c.name))}
               />
             ))}
+          </div>
+          
+          {/* Emergency + Support buttons */}
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button
+              onClick={() => navigate("/book?category=Emergency")}
+              className="flex items-center gap-3 p-4 rounded-xl bg-red-500 text-white font-semibold shadow-lg active:scale-95 transition-transform"
+            >
+              <FlameKindling className="w-6 h-6 flex-shrink-0" />
+              <div className="text-left">
+                <p className="text-sm font-bold">Emergency</p>
+                <p className="text-xs opacity-80">Fast response 24/7</p>
+              </div>
+            </button>
+            <button
+              onClick={() => navigate("/support")}
+              className="flex items-center gap-3 p-4 rounded-xl bg-blue-500 text-white font-semibold shadow-lg active:scale-95 transition-transform"
+            >
+              <Phone className="w-6 h-6 flex-shrink-0" />
+              <div className="text-left">
+                <p className="text-sm font-bold">Support</p>
+                <p className="text-xs opacity-80">Get help fast</p>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -283,7 +306,7 @@ export default function HomePage() {
                     verified={worker.verified === 1}
                     availableNow={worker.availableNow === 1}
                     onViewProfile={() => setSelectedWorker(worker)}
-                    onRequest={() => navigate("/book")}
+                    onRequest={() => navigate("/book?workerId=" + w.id + "&category=" + (selectedCategory || w.specialty))}
                   />
                 ))}
               </div>

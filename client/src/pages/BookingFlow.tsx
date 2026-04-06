@@ -146,7 +146,12 @@ interface QuoteResult {
 
 export default function BookingFlow() {
   const { user } = useAuth();
-  const [_, navigate] = useLocation();
+  const [currentPath, navigate] = useLocation();
+  
+  // Read URL params
+  const urlParams = new URLSearchParams(currentPath.split('?')[1] || '');
+  const urlCategory = urlParams.get('category');
+  const urlWorkerId = urlParams.get('workerId');
   const { toast } = useToast();
 
   const [step, setStep] = useState(0);
@@ -155,7 +160,7 @@ export default function BookingFlow() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiCategory, setAiCategory] = useState("General");
+  const [aiCategory, setAiCategory] = useState(urlCategory || "General");
 
   // Step 1
   const [area, setArea] = useState("");

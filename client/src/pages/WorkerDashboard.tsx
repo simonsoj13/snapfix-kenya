@@ -414,7 +414,7 @@ export default function WorkerDashboard() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <span className="font-semibold text-sm">{job.category}</span>
+                                  <span className={"font-semibold text-sm " + (job.category === "Emergency" ? "text-red-500" : "")}>{job.category === "Emergency" ? "🚨 " : ""}{job.category}</span>
                                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                                     <MapPin className="w-3 h-3" /> {job.location}
                                   </div>

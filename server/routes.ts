@@ -4,6 +4,7 @@ import multer from "multer";
 import { storage } from "./storage";
 import { analyzeRepairImage } from "./ai";
 import { sendPasswordResetCode } from "./email";
+import { uploadImage } from "./cloudinary";
 import { insertJobRequestSchema, insertUserSchema, loginSchema, adminLoginSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -214,7 +215,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-requests", async (req, res) => {
     try {
-      const data = insertJobRequestSchema.parse(req.body);
+      let data = insertJobRequestSchema.parse(req.body);
+      // Upload image to Cloudinary if base64
+      if (data.imageUrl && data.imageUrl.startsWith('data:')) {
+        data = { ...data, imageUrl: await uploadImage(data.imageUrl, 'job-photos') };
+      }
       res.json(await storage.createJobRequest(data));
     } catch (err: any) {
       res.status(400).json({ error: err.message || "Failed to create request" });
@@ -388,11 +393,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId, workerName, email, phone, idFront, idBack, workSamples, specialty, bio, yearsExperience } = req.body;
       if (!userId) return res.status(400).json({ error: "userId required" });
+      
+      // Upload images to Cloudinary if they are base64
+      let idFrontUrl = idFront ?? null;
+      let idBackUrl = idBack ?? null;
+      let workSampleUrls = workSamples ?? [];
+      
+      if (idFront && idFront.startsWith('data:')) {
+        idFrontUrl = await uploadImage(idFront, 'id-docs');
+      }
+      if (idBack && idBack.startsWith('data:')) {
+        idBackUrl = await uploadImage(idBack, 'id-docs');
+      }
+      if (workSamples && workSamples.length > 0) {
+        workSampleUrls = await Promise.all(
+          workSamples.map((s: string) => s.startsWith('data:') ? uploadImage(s, 'work-samples') : s)
+        );
+      }
+      
       const doc = await storage.upsertWorkerVerification(userId, {
         userId, workerName, email, phone,
-        idFront: idFront ?? null,
-        idBack: idBack ?? null,
-        workSamples: workSamples ?? [],
+        idFront: idFrontUrl,
+        idBack: idBackUrl,
+        workSamples: workSampleUrls,
         specialty: specialty ?? "General",
         bio: bio ?? "",
         yearsExperience: yearsExperience ?? 0,
