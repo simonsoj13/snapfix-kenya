@@ -134,3 +134,20 @@ export type Worker = typeof workers.$inferSelect;
 export type InsertWorker = z.infer<typeof insertWorkerSchema>;
 export type JobRequest = typeof jobRequests.$inferSelect;
 export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
+
+export const workerVerifications = pgTable("worker_verifications", {
+  userId: varchar("user_id").primaryKey(),
+  workerName: text("worker_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  idFront: text("id_front"),
+  idBack: text("id_back"),
+  workSamples: text("work_samples").notNull().default("[]"),
+  specialty: text("specialty"),
+  bio: text("bio"),
+  yearsExperience: integer("years_experience"),
+  status: text("status").notNull().default("pending"),
+  submittedAt: text("submitted_at").notNull(),
+  reviewedAt: text("reviewed_at"),
+  reviewNote: text("review_note"),
+});

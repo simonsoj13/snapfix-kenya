@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and } from "drizzle-orm";
 import pkg from "pg";
 const { Pool } = pkg;
-import { users, workers, jobRequests } from "@shared/schema";
+import { users, workers, jobRequests, workerVerifications } from "@shared/schema";
 import type { User, InsertUser, Worker, InsertWorker, JobRequest, InsertJobRequest, Review, Transaction, SupportTicket, PricingConfig } from "@shared/schema";
 import type { IStorage, WorkerVerification } from "./storage";
 import { randomUUID } from "crypto";
@@ -14,7 +14,6 @@ const db = drizzle(pool);
 const reviews: Map<string, Review> = new Map();
 const transactions: Map<string, Transaction> = new Map();
 const supportTickets: Map<string, SupportTicket> = new Map();
-const workerVerifications: Map<string, WorkerVerification> = new Map();
 const resetCodes: Record<string, string> = {};
 let pricingConfig: Map<string, PricingConfig> = new Map([
   ["Plumbing",   { category: "Plumbing",   baseMin: 2500, baseMax: 6000,  depositPercent: 0.3  }],
@@ -142,14 +141,42 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getWorkerVerification(userId: string) { return workerVerifications.get(userId); }
-  async getWorkerVerificationByEmail(email: string) { return Array.from(workerVerifications.values()).find(v => v.email.toLowerCase() === email.toLowerCase()); }
-  async getAllWorkerVerifications() { return Array.from(workerVerifications.values()); }
+  async getWorkerVerification(userId: string) {
+    const [v] = await db.select().from(workerVerifications).where(eq(workerVerifications.userId, userId));
+    if (!v) return undefined;
+    return { ...v, workSamples: JSON.parse(v.workSamples || '[]') } as any;
+  }
+  async getWorkerVerificationByEmail(email: string) {
+    const [v] = await db.select().from(workerVerifications).where(eq(workerVerifications.email, email.toLowerCase()));
+    if (!v) return undefined;
+    return { ...v, workSamples: JSON.parse(v.workSamples || '[]') } as any;
+  }
+  async getAllWorkerVerifications() {
+    const all = await db.select().from(workerVerifications);
+    return all.map(v => ({ ...v, workSamples: JSON.parse(v.workSamples || '[]') })) as any[];
+  }
   async upsertWorkerVerification(userId: string, data: Partial<WorkerVerification>): Promise<WorkerVerification> {
-    const existing = workerVerifications.get(userId) ?? { userId, workerName: "", email: "", phone: "", idFront: null, idBack: null, workSamples: [], status: "pending" as const, submittedAt: new Date().toISOString() };
-    const updated: WorkerVerification = { ...existing, ...data, submittedAt: data.submittedAt ?? existing.submittedAt };
-    workerVerifications.set(userId, updated);
-    return updated;
+    const workSamples = JSON.stringify(data.workSamples ?? []);
+    const values = {
+      userId,
+      workerName: data.workerName ?? "",
+      email: data.email ?? "",
+      phone: data.phone ?? "",
+      idFront: data.idFront ?? null,
+      idBack: data.idBack ?? null,
+      workSamples,
+      specialty: data.specialty ?? null,
+      bio: data.bio ?? null,
+      yearsExperience: data.yearsExperience ?? null,
+      status: data.status ?? "pending",
+      submittedAt: data.submittedAt ?? new Date().toISOString(),
+      reviewedAt: data.reviewedAt ?? null,
+      reviewNote: data.reviewNote ?? null,
+    };
+    const [result] = await db.insert(workerVerifications).values(values)
+      .onConflictDoUpdate({ target: workerVerifications.userId, set: values })
+      .returning();
+    return { ...result, workSamples: JSON.parse(result.workSamples || '[]') } as any;
   }
 
   async getPricingConfig() { return Array.from(pricingConfig.values()); }
