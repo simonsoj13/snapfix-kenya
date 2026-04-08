@@ -168,7 +168,7 @@ export default function WorkerDashboard() {
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
   const walletBalance = walletUser?.walletBalance ?? 0;
-  const pendingPayout = transactions.filter(t => t.status === "pending").reduce((sum, t) => sum + t.amount, 0);
+  const pendingPayout = transactions.filter((t: any) => t.status === "pending").reduce((sum: number, t: any) => sum + t.amount, 0);
 
   const uploadedCount = [idFront, idBack, ...samples.filter(Boolean)].length;
   const uploadProgress = Math.min(100, Math.round((uploadedCount / 7) * 100));
@@ -178,6 +178,7 @@ export default function WorkerDashboard() {
     try {
       await fetch(`/api/job-requests/${jobId}/accept`, { method: "PATCH" });
       qc.invalidateQueries({ queryKey: ["/api/job-requests/worker", user.id] });
+      toast({ title: "Job accepted! 🎉", description: "Customer has been notified." });
   } catch (error) {
     console.error("Error accepting job:", error);
   }
@@ -526,7 +527,7 @@ export default function WorkerDashboard() {
             </Card>
             <h3 className="text-sm font-semibold text-muted-foreground">TRANSACTION HISTORY</h3>
             <div className="space-y-2">
-              {transactions.map((tx) => (
+              {(transactions as any[]).map((tx: any) => (
                 <Card key={tx.id}>
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between gap-2">

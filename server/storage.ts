@@ -41,6 +41,7 @@ export interface IStorage {
   getWorker(id: string): Promise<Worker | undefined>;
   getAllWorkers(): Promise<Worker[]>;
   updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined>;
+  updateWorkerRating(id: string, rating: number, reviewCount: number): Promise<Worker | undefined>;
   searchWorkers(filters: {
     specialty?: string;
     maxDistance?: number;
@@ -538,6 +539,8 @@ export class MemStorage implements IStorage {
   async getPricingConfig() { return Array.from(this.pricingConfig.values()); }
 
   async createWorkerFromVerification(verification: WorkerVerification, user: any) { return null; }
+
+  async updateWorkerRating(id: string, rating: number, reviewCount: number) { return undefined; }
 
   async updateUserProfile(id: string, updates: any) {
     const u = this.users.get(id);

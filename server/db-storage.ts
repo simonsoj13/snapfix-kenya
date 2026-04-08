@@ -66,6 +66,10 @@ export class DatabaseStorage implements IStorage {
     return worker;
   }
   async getAllWorkers() { return db.select().from(workers); }
+  async updateWorkerRating(id: string, rating: number, reviewCount: number) {
+    const [updated] = await db.update(workers).set({ rating, reviewCount }).where(eq(workers.id, id)).returning();
+    return updated;
+  }
   async updateWorkerAvailability(id: string, availableNow: number) {
     const [updated] = await db.update(workers).set({ availableNow }).where(eq(workers.id, id)).returning();
     return updated;

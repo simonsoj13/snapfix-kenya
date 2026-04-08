@@ -465,7 +465,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/admin/verifications/:userId", async (req, res) => {
     const { status, reviewNote } = req.body;
     if (!["approved", "rejected"].includes(status)) return res.status(400).json({ error: "status must be approved or rejected" });
+    // Get existing verification first to preserve photos
+    const existing = await storage.getWorkerVerification(req.params.userId);
+    if (!existing) return res.status(404).json({ error: "Verification not found" });
     const updated = await storage.upsertWorkerVerification(req.params.userId, {
+      ...existing,
       status, reviewNote, reviewedAt: new Date().toISOString(),
     });
     if (status === "approved") {
@@ -510,7 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fundi accepts a job
   app.patch("/api/job-requests/:id/accept", async (req, res) => {
-    const job = await storage.updateJobRequest(req.params.id, { status: "deposit-paid" });
+    const job = await storage.updateJobRequest(req.params.id, { status: "in-progress" });
     res.json(job);
   });
 

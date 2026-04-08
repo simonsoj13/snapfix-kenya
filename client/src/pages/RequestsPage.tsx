@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import JobStatusBadge from "@/components/JobStatusBadge";
@@ -35,26 +36,9 @@ function StkPushDialog({
   };
 
 
-  const handleConfirmArrived = async (jobId: string) => {
-    try {
-      await fetch(`/api/job-requests/${jobId}/arrived`, { method: "PATCH" });
-      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/user"] });
-      toast({ title: "Confirmed!", description: "Fundi arrival confirmed." });
-    } catch {
-      toast({ title: "Failed", variant: "destructive" });
-    }
-  };
 
-  const handleConfirmComplete = async (jobId: string) => {
-    try {
-      await fetch(`/api/job-requests/${jobId}/complete`, { method: "PATCH" });
-      queryClient.invalidateQueries({ queryKey: ["/api/job-requests/user"] });
-      toast({ title: "Work confirmed complete!", description: "Please pay the balance to finish." });
-    } catch {
-      toast({ title: "Failed", variant: "destructive" });
-    }
-  };
 
+  
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
@@ -159,6 +143,45 @@ export default function RequestsPage() {
   const userId = user?.id ?? "";
 
   const [payBalanceJob, setPayBalanceJob] = useState<ExtJobRequest | null>(null);
+  const [ratingJob, setRatingJob] = useState<ExtJobRequest | null>(null);
+  const [starRating, setStarRating] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
+
+  const handleConfirmArrived = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/arrived`, { method: "PATCH" });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
+      toast({ title: "Confirmed!", description: "Fundi arrival confirmed." });
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+  };
+
+  const handleConfirmComplete = async (jobId: string) => {
+    try {
+      await fetch(`/api/job-requests/${jobId}/complete`, { method: "PATCH" });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
+      toast({ title: "Work confirmed complete!", description: "Please pay the balance to finish." });
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+  };
+
+  const handleSubmitRating = async () => {
+    if (!ratingJob) return;
+    setSubmittingRating(true);
+    try {
+      await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId, workerId: ratingJob.workerId, rating: starRating,
+          comment: ratingComment, customerName: user?.name ?? "Customer",
+          jobCategory: ratingJob.category,
+        }),
+      });
+      toast({ title: "Thank you for your rating! ⭐" });
+      setRatingJob(null); setRatingComment(""); setStarRating(5);
+    } catch { toast({ title: "Failed to submit rating", variant: "destructive" }); }
+    finally { setSubmittingRating(false); }
+  };
 
   const { data: requests = [], isLoading } = useQuery<ExtJobRequest[]>({
     queryKey: ["/api/job-requests/user", userId],
@@ -206,6 +229,7 @@ export default function RequestsPage() {
     qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
     setPayBalanceJob(null);
     toast({ title: "Payment successful!", description: "Job marked as complete. Thank you!" });
+    setRatingJob(payBalanceJob);
   };
 
   if (isLoading) {
@@ -272,6 +296,17 @@ export default function RequestsPage() {
                       <div>
                         <p className="font-semibold text-sm">Your Fundi is on the way!</p>
                         {eta && <p className="text-xs mt-0.5">Estimated arrival: <strong>{eta}</strong></p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Fundi accepted banner ── */}
+                  {req.status === "in-progress" && !isOnTheWay && (
+                    <div className="flex items-center gap-3 bg-green-500/10 text-green-700 rounded-lg px-4 py-3">
+                      <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-sm">Fundi accepted your job!</p>
+                        <p className="text-xs mt-0.5">They will contact you shortly.</p>
                       </div>
                     </div>
                   )}
@@ -454,6 +489,30 @@ export default function RequestsPage() {
         onSuccess={() => payBalanceJob && handleBalancePaid(payBalanceJob)}
         onClose={() => setPayBalanceJob(null)}
       />
+
+      {/* Rating Dialog */}
+      <Dialog open={!!ratingJob} onOpenChange={() => setRatingJob(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Rate your Fundi ⭐</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">How was your experience with {ratingJob?.category} service?</p>
+            <div className="flex justify-center gap-2">
+              {[1,2,3,4,5].map(star => (
+                <button key={star} onClick={() => setStarRating(star)} className="text-3xl transition-transform hover:scale-110">
+                  {star <= starRating ? "⭐" : "☆"}
+                </button>
+              ))}
+            </div>
+            <div>
+              <Label>Comment (optional)</Label>
+              <Textarea value={ratingComment} onChange={e => setRatingComment(e.target.value)} placeholder="Tell others about your experience..." className="mt-1" rows={3} />
+            </div>
+            <Button className="w-full" onClick={handleSubmitRating} disabled={submittingRating}>
+              {submittingRating ? "Submitting..." : "Submit Rating"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
 
   );
