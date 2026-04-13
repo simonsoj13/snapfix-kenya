@@ -326,6 +326,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Admin ─────────────────────────────────────────────────────────────────
 
+  app.get("/api/admin/users", async (_req, res) => {
+    const users = await storage.getAllUsers();
+    res.json(users);
+  });
+
   app.get("/api/admin/stats", async (_req, res) => {
     const workers = await storage.getAllWorkers();
     const requests = await storage.getAllJobRequests();
@@ -343,24 +348,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       cancelledRequests: requests.filter((r) => r.status === "cancelled").length,
       avgRating: parseFloat(avgRating.toFixed(2)),
       totalRevenue,
-      totalUsers: 42,
+      totalUsers: (await storage.getAllUsers()).length,
     });
   });
 
   app.get("/api/admin/requests-trend", async (_req, res) => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    res.json(days.map((day) => ({
-      day,
-      requests: Math.floor(Math.random() * 30) + 10,
-      completed: Math.floor(Math.random() * 20) + 5,
-      revenue: Math.floor(Math.random() * 20000) + 5000,
-    })));
+    const allRequests = await storage.getAllJobRequests();
+    const allTransactions = await storage.getAllTransactions();
+    const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dayName = days[d.getDay()];
+      const dateStr = d.toISOString().split("T")[0];
+      const dayRequests = allRequests.filter(r => r.createdAt && r.createdAt.toString().startsWith(dateStr));
+      const dayCompleted = dayRequests.filter(r => r.status === "completed");
+      const dayRevenue = allTransactions
+        .filter(t => t.status === "completed" && t.createdAt && t.createdAt.toString().startsWith(dateStr))
+        .reduce((s, t) => s + t.amount, 0);
+      result.push({ day: dayName, requests: dayRequests.length, completed: dayCompleted.length, revenue: dayRevenue });
+    }
+    res.json(result);
   });
 
   app.get("/api/admin/category-breakdown", async (_req, res) => {
-    const workers = await storage.getAllWorkers();
+    const requests = await storage.getAllJobRequests();
     const counts: Record<string, number> = {};
-    workers.forEach((w) => { counts[w.specialty] = (counts[w.specialty] || 0) + 1; });
+    requests.forEach((r) => { 
+      const cat = r.category || "Other";
+      counts[cat] = (counts[cat] || 0) + 1; 
+    });
     res.json(Object.entries(counts).map(([name, value]) => ({ name, value })));
   });
 

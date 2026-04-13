@@ -39,6 +39,7 @@ export interface IStorage {
   upsertWorkerVerification(userId: string, data: Partial<WorkerVerification>): Promise<WorkerVerification>;
 
   getWorker(id: string): Promise<Worker | undefined>;
+  getAllUsers(): Promise<User[]>;
   getAllWorkers(): Promise<Worker[]>;
   updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined>;
   updateWorkerRating(id: string, rating: number, reviewCount: number): Promise<Worker | undefined>;
@@ -411,6 +412,7 @@ export class MemStorage implements IStorage {
 
   // ── Workers ────────────────────────────────────────────────────────────────
   async getWorker(id: string) { return this.workers.get(id); }
+  async getAllUsers() { return Array.from(this.users.values()); }
   async getAllWorkers() { return Array.from(this.workers.values()); }
 
   async updateWorkerAvailability(id: string, availableNow: number) {

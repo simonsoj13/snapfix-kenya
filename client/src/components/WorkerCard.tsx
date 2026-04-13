@@ -16,6 +16,8 @@ interface WorkerCardProps {
   profileImage: string;
   verified?: boolean;
   availableNow?: boolean;
+  bio?: string;
+  yearsExperience?: number;
   onViewProfile?: () => void;
   onRequest?: () => void;
 }
@@ -31,6 +33,8 @@ export default function WorkerCard({
   profileImage,
   verified = false,
   availableNow = false,
+  bio,
+  yearsExperience,
   onViewProfile,
   onRequest,
 }: WorkerCardProps) {
@@ -38,7 +42,7 @@ export default function WorkerCard({
     <Card className="p-6 flex flex-col gap-4" data-testid={`card-worker-${id}`}>
       <div className="flex items-start gap-4">
         <Avatar className="w-16 h-16">
-          <AvatarImage src={getWorkerImage(specialty)} alt={name} />
+          <AvatarImage src={profileImage || getWorkerImage(specialty)} alt={name} />
           <AvatarFallback>{name.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
@@ -51,8 +55,9 @@ export default function WorkerCard({
             )}
           </div>
           <p className="text-sm text-muted-foreground" data-testid={`text-specialty-${id}`}>
-            {specialty}
+            {specialty} {yearsExperience ? `· ${yearsExperience} yrs exp` : ""}
           </p>
+          {bio && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{bio}</p>}
           <div className="flex items-center gap-1 mt-1">
             <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
             <span className="text-sm font-semibold" data-testid={`text-rating-${id}`}>

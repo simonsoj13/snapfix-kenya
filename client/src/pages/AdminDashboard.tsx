@@ -93,6 +93,72 @@ const PRIORITY_BADGE: Record<string, string> = {
   low:    "bg-primary/10 text-primary",
 };
 
+
+function CustomerProfilesTable() {
+  const [search, setSearch] = useState("");
+  const { data: customers = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/users"],
+    queryFn: () => fetch("/api/admin/users").then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const filtered = customers.filter(c =>
+    c.name?.toLowerCase().includes(search.toLowerCase()) ||
+    c.email?.toLowerCase().includes(search.toLowerCase()) ||
+    c.phone?.includes(search)
+  );
+
+  return (
+    <div className="space-y-4">
+      <Input
+        placeholder="Search by name, email or phone..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="max-w-sm"
+      />
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">Loading customers...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">No customers found.</div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Joined</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map(c => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                      {c.name?.[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    {c.name ?? "—"}
+                  </div>
+                </TableCell>
+                <TableCell>{c.email ?? "—"}</TableCell>
+                <TableCell>{c.phone ?? "—"}</TableCell>
+                <TableCell>{c.createdAt ? new Date(c.createdAt).toLocaleDateString("en-KE") : "—"}</TableCell>
+                <TableCell>
+                  <Badge variant={c.isVerified ? "default" : "secondary"}>
+                    {c.isVerified ? "Verified" : "Unverified"}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [_, navigate] = useLocation();
   const [showProfile, setShowProfile] = useState(false);
@@ -327,6 +393,9 @@ export default function AdminDashboard() {
                   {verifications.filter((v) => v.status === "pending").length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="customers" data-testid="tab-customers">
+              <Users className="w-4 h-4 mr-1" /> Customers
             </TabsTrigger>
             <TabsTrigger value="pricing" data-testid="tab-pricing">
               <Settings className="w-3.5 h-3.5 mr-1" />Pricing
@@ -874,6 +943,19 @@ export default function AdminDashboard() {
           </TabsContent>
 
           {/* ── Pricing Config ── */}
+          <TabsContent value="customers">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" /> Customer Profiles
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CustomerProfilesTable />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="pricing">
             <Card>
               <CardHeader>

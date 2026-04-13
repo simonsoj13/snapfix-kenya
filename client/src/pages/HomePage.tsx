@@ -305,6 +305,8 @@ export default function HomePage() {
                     {...worker}
                     verified={worker.verified === 1}
                     availableNow={worker.availableNow === 1}
+                    bio={worker.bio}
+                    yearsExperience={worker.yearsExperience}
                     onViewProfile={() => setSelectedWorker(worker)}
                     onRequest={() => navigate("/book?workerId=" + worker.id + "&category=" + (selectedCategory || worker.specialty))}
                   />
