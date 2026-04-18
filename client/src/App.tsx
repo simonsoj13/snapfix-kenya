@@ -18,6 +18,7 @@ import BookingFlow from "@/pages/BookingFlow";
 import WorkerDashboard from "@/pages/WorkerDashboard";
 import SupportPage from "@/pages/SupportPage";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/LandingPage";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 const TAB_ROUTES = {
@@ -64,6 +65,7 @@ function Router() {
   }
 
   // ── Unauthenticated → send to login ──
+  if (location === "/") return <LandingPage />;
   if (!user) return <Redirect to="/login" />;
 
   // ── Admin user ──
