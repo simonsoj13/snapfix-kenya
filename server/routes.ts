@@ -301,6 +301,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(tx);
   });
 
+  app.post("/api/admin/transactions/:id/approve", async (req, res) => {
+    const tx = await storage.getTransactionById(req.params.id);
+    if (!tx) return res.status(404).json({ error: "Transaction not found" });
+    const updated = await storage.updateTransactionStatus(req.params.id, "completed");
+    res.json(updated);
+  });
+
+  app.get("/api/admin/company-balance", async (_req, res) => {
+    const txs = await storage.getAllTransactions();
+    const balance = txs
+      .filter((t) => t.status === "completed")
+      .reduce((sum, t) => sum + (t.type === "reversed" ? -t.amount : t.amount), 0);
+    res.json({ balance });
+  });
+
   // ── Support Tickets ───────────────────────────────────────────────────────
 
   app.get("/api/support", async (req, res) => {

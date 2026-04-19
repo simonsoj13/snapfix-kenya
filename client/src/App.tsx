@@ -64,9 +64,11 @@ function Router() {
     return <LoginPage />;
   }
 
-  // ── Unauthenticated → send to login ──
-  if (location === "/") return <LandingPage />;
-  if (!user) return <Redirect to="/login" />;
+  // ── Unauthenticated → landing page, authenticated → app ──
+  if (!user) {
+    if (location === "/") return <LandingPage />;
+    return <Redirect to="/login" />;
+  }
 
   // ── Admin user ──
   if (user.role === "admin") {
@@ -107,6 +109,7 @@ function Router() {
         <Route path="/requests" component={RequestsPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/support" component={SupportPage} />
+        <Route path="/book" component={BookingFlow} />
         <Route component={NotFound} />
       </Switch>
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />

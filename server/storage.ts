@@ -496,6 +496,18 @@ export class MemStorage implements IStorage {
   // ── Transactions ───────────────────────────────────────────────────────────
   async getAllTransactions() { return Array.from(this.transactions.values()); }
 
+  async getTransactionById(id: string) {
+    return this.transactions.get(id) ?? null;
+  }
+
+  async updateTransactionStatus(id: string, status: string) {
+    const tx = this.transactions.get(id);
+    if (!tx) return null;
+    const updated = { ...tx, status };
+    this.transactions.set(id, updated);
+    return updated;
+  }
+
   async getTransactionsByUser(userId: string) {
     return Array.from(this.transactions.values()).filter((t) => t.userId === userId);
   }

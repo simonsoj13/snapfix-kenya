@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
 import WorkerMapView from "@/components/WorkerMapView";
+import { Banknote } from "lucide-react";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { getWorkerImage } from "@/lib/workerImages";
 import type { Worker, JobRequest } from "@shared/schema";
@@ -206,6 +207,12 @@ export default function AdminDashboard() {
     queryFn: () => fetch("/api/admin/requests").then((r) => r.json()),
     refetchInterval: 10000,
   });
+  const { data: companyBalance = { balance: 0 }, refetch: refetchBalance } = useQuery<{ balance: number }>({
+    queryKey: ["/api/admin/company-balance"],
+    queryFn: () => fetch("/api/admin/company-balance").then((r) => r.json()),
+    refetchInterval: 5000,
+  });
+
   const { data: transactions = [], refetch: refetchTx } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
     queryFn: () => fetch("/api/admin/transactions").then((r) => r.json()),
@@ -229,12 +236,24 @@ export default function AdminDashboard() {
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: (txId: string) =>
+      fetch(`/api/admin/transactions/${txId}/approve`, { method: "POST" }).then((r) => r.json()),
+    onSuccess: () => {
+      toast({ title: "Payment approved!", description: "Customer can now proceed to next step." });
+      refetchTx();
+      refetchBalance();
+    },
+  });
+
   const reverseMutation = useMutation({
     mutationFn: (txId: string) =>
       fetch(`/api/admin/transactions/${txId}/reverse`, { method: "POST" }).then((r) => r.json()),
     onSuccess: () => {
       refetchTx();
       toast({ title: "Transaction reversed", description: "Funds will be returned to customer." });
+      refetchTx();
+      refetchBalance();
     },
   });
 
@@ -655,6 +674,28 @@ export default function AdminDashboard() {
 
           {/* ── Transactions ── */}
           <TabsContent value="transactions">
+
+            {/* Company Balance Card */}
+            <Card className="mb-4 border-green-500/30 bg-green-500/5">
+              <CardContent className="py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500/15 flex items-center justify-center">
+                    <Banknote className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Company Balance</p>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                      KES {companyBalance.balance.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">From approved transactions</p>
+                  <p className="text-xs text-muted-foreground">{transactions.filter(t => t.status === "completed").length} completed</p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -700,21 +741,34 @@ export default function AdminDashboard() {
                             {new Date(tx.createdAt).toLocaleDateString("en-KE")}
                           </TableCell>
                           <TableCell>
-                            {tx.status === "completed" && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="gap-1.5 text-destructive text-xs whitespace-nowrap"
-                                onClick={() => reverseMutation.mutate(tx.id)}
-                                disabled={reverseMutation.isPending}
-                                data-testid={`button-reverse-${tx.id}`}
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" /> Reverse
-                              </Button>
-                            )}
-                            {tx.status === "reversed" && (
-                              <span className="text-xs text-muted-foreground">Reversed</span>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              {tx.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  className="gap-1.5 text-xs whitespace-nowrap bg-green-600 hover:bg-green-700"
+                                  onClick={() => approveMutation.mutate(tx.id)}
+                                  disabled={approveMutation.isPending}
+                                  data-testid={`button-approve-${tx.id}`}
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                </Button>
+                              )}
+                              {tx.status === "completed" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="gap-1.5 text-destructive text-xs whitespace-nowrap"
+                                  onClick={() => reverseMutation.mutate(tx.id)}
+                                  disabled={reverseMutation.isPending}
+                                  data-testid={`button-reverse-${tx.id}`}
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> Reverse
+                                </Button>
+                              )}
+                              {tx.status === "reversed" && (
+                                <span className="text-xs text-muted-foreground italic">Reversed</span>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

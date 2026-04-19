@@ -73,60 +73,55 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-function StkPushDialog({
-  open, amount, phone, onSuccess, onClose,
-}: { open: boolean; amount: number; phone: string; onSuccess: () => void; onClose: () => void }) {
-  const [processing, setProcessing] = useState(false);
-  const [pin, setPin] = useState("");
-
-  const handleConfirm = async () => {
-    if (pin.length < 4) return;
-    setProcessing(true);
-    await new Promise((r) => setTimeout(r, 2200));
-    setProcessing(false);
-    onSuccess();
-  };
-
+function PaymentDialog({
+  open, amount, label, onClose,
+}: { open: boolean; amount: number; label: string; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-green-600" />
-            M-Pesa STK Push
+            Pay via M-Pesa
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-5">
-          <div className="bg-green-500/10 rounded-md p-4 text-center space-y-1">
-            <p className="text-xs text-muted-foreground">Booking confirmed! Click below to view your requests</p>
-            <p className="font-semibold">{phone}</p>
-            <p className="text-2xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Balance paid after service completion</p>
+          <div className="bg-green-500/10 border border-green-500/20 rounded-md p-4 text-center space-y-3">
+            <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+            <p className="text-3xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="mpesa-pin">Enter M-Pesa PIN</Label>
-            <Input
-              id="mpesa-pin"
-              type="password"
-              maxLength={6}
-              placeholder="••••"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-xl tracking-widest"
-              data-testid="input-mpesa-pin"
-            />
+
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md p-4 space-y-2">
+            <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 uppercase tracking-wide">STK Push Unavailable</p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-400">
+              Automatic M-Pesa push is currently offline. Please pay manually using the till number below.
+            </p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={onClose} disabled={processing}>Cancel</Button>
-            <Button
-              className="flex-1 bg-green-600"
-              onClick={handleConfirm}
-              disabled={pin.length < 4 || processing}
-              data-testid="button-confirm-payment"
-            >
-              {processing ? "Processing…" : "Confirm"}
-            </Button>
+
+          <div className="bg-muted rounded-md p-4 text-center space-y-1">
+            <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
+            <p className="text-4xl font-bold tracking-widest text-primary">324225</p>
+            <p className="text-xs text-muted-foreground">Snap-Fix Kenya</p>
           </div>
+
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>1. Open M-Pesa on your phone</p>
+            <p>2. Select <strong>Lipa na M-Pesa</strong></p>
+            <p>3. Select <strong>Buy Goods & Services</strong></p>
+            <p>4. Enter Till: <strong>324225</strong></p>
+            <p>5. Enter amount: <strong>KES {amount.toLocaleString()}</strong></p>
+            <p>6. Enter your PIN and confirm</p>
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-3">
+            <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+              ⏳ After paying, wait for admin to confirm your payment. You will be notified before proceeding.
+            </p>
+          </div>
+
+          <Button className="w-full" variant="outline" onClick={onClose}>
+            I have paid — waiting for confirmation
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -711,12 +706,19 @@ export default function BookingFlow() {
               Pay Deposit KES {quote?.deposit.toLocaleString()} via M-Pesa
             </Button>
 
-            <StkPushDialog
+            {showStk && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-md p-4 text-center space-y-2">
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Waiting for admin to confirm your payment…</p>
+                <p className="text-xs text-muted-foreground">You will be able to proceed once payment is verified.</p>
+              </div>
+            )}
+
+            <PaymentDialog
               open={showStk}
               amount={quote?.deposit ?? 0}
-              phone={user?.phone ?? ""}
-              onSuccess={() => { setShowStk(false); navigate("/requests"); }}
-              onClose={() => setShowStk(false)}
+              label="Deposit Payment"
+              onClose={() => setShowStk(true)}
             />
           </div>
         )}
@@ -757,12 +759,20 @@ export default function BookingFlow() {
                   <Smartphone className="w-4 h-4 mr-2" />
                   Pay Balance via M-Pesa
                 </Button>
-                <StkPushDialog
+
+                {showStk && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-md p-4 text-center space-y-2">
+                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Waiting for admin to confirm your balance payment…</p>
+                    <p className="text-xs text-muted-foreground">You will be able to proceed once payment is verified.</p>
+                  </div>
+                )}
+
+                <PaymentDialog
                   open={showStk}
                   amount={(quote?.midpoint ?? 0) - (quote?.deposit ?? 0)}
-                  phone={user?.phone ?? ""}
-                  onSuccess={handlePaymentSuccess}
-                  onClose={() => setShowStk(false)}
+                  label="Balance Payment"
+                  onClose={() => setShowStk(true)}
                 />
               </>
             ) : (

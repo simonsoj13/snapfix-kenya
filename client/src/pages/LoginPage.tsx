@@ -94,7 +94,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       login(data);
-      navigate(data.role === "worker" ? "/worker" : "/");
+      navigate(data.role === "worker" ? "/worker" : "/app");
     } catch (err: any) {
       toast({ title: "Login failed", description: err.message, variant: "destructive" });
     } finally {
@@ -125,7 +125,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       login(data);
-      navigate(data.role === "worker" ? "/worker" : "/");
+      navigate(data.role === "worker" ? "/worker" : "/app");
     } catch (err: any) {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     } finally {
