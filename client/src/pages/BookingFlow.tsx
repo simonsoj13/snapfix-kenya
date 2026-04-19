@@ -23,6 +23,24 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+function WorkerPhotos({ workerId }: { workerId: string }) {
+  const { data } = useQuery<{ workSamples: string[]; workerName: string }>({
+    queryKey: ["/api/workers", workerId, "work-samples"],
+    queryFn: () => fetch(`/api/workers/${workerId}/work-samples`).then((r) => r.json()),
+  });
+  if (!data?.workSamples?.length) return null;
+  return (
+    <div className="mt-3 pt-3 border-t border-border">
+      <p className="text-xs text-muted-foreground mb-2 font-medium">Previous Work</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {data.workSamples.slice(0, 6).map((url, i) => (
+          <img key={i} src={url} alt="work sample" className="w-full h-16 object-cover rounded-md border border-border" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const AREAS = [
   { id: "bathroom",     label: "Bathroom" },
   { id: "kitchen",      label: "Kitchen" },
@@ -149,7 +167,20 @@ export default function BookingFlow() {
   const urlWorkerId = urlParams.get('workerId');
   const { toast } = useToast();
 
-  const [step, setStep] = useState(0);
+  const STORAGE_KEY = "snapfix_booking_draft";
+
+  const loadDraft = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  };
+
+  const [step, setStep] = useState(() => {
+    const draft = loadDraft();
+    return draft?.step ?? 0;
+  });
 
   // Step 0
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -183,6 +214,24 @@ export default function BookingFlow() {
   const [paymentDone, setPaymentDone] = useState(false);
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
+
+  // Save booking progress to localStorage
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        step, area, description, location, aiCategory,
+        isNow, scheduledDate, scheduledTime,
+        selectedWorkerId: selectedWorker?.id ?? null,
+        imageUrl,
+      }));
+    } catch {}
+  };
+
+  // Auto-save on step change
+  useState(() => { saveDraft(); });
+
+  // Clear draft when booking complete
+  const clearDraft = () => { try { localStorage.removeItem(STORAGE_KEY); } catch {} };
 
   const { data: workers = [] } = useQuery<Worker[]>({
     queryKey: ["/api/workers/search", aiCategory],
@@ -258,6 +307,25 @@ export default function BookingFlow() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setJobRequest(data);
+
+      // Create transaction immediately so admin can see and approve it
+      await fetch("/api/transactions/pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobRequestId: data.id,
+          userId: user.id,
+          customerName: user.name,
+          workerName: selectedWorker.name,
+          amount: quote.deposit,
+          type: "deposit",
+          status: "pending",
+          phone: user.phone,
+          mpesaRef: "PENDING-" + Date.now(),
+          category: aiCategory,
+        }),
+      });
+
       setStep(5);
     } catch (err: any) {
       toast({ title: "Booking failed", description: err.message, variant: "destructive" });
@@ -279,11 +347,21 @@ export default function BookingFlow() {
   };
 
   const handleFinish = () => {
+    clearDraft();
     toast({ title: "All done!", description: "Thank you for using Snap-Fix Kenya." });
     navigate("/requests");
   };
 
-  const prev = () => setStep((s) => Math.max(0, s - 1));
+  const prev = () => setStep((s) => {
+    const next = Math.max(0, s - 1);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: next, area, description, location, aiCategory, isNow, scheduledDate, scheduledTime, imageUrl })); } catch {}
+    return next;
+  });
+
+  const goStep = (n: number) => {
+    setStep(n);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: n, area, description, location, aiCategory, isNow, scheduledDate, scheduledTime, imageUrl })); } catch {}
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-8">
@@ -556,6 +634,8 @@ export default function BookingFlow() {
                         </div>
                       </div>
                     </div>
+                    {/* Worker previous work samples */}
+                    <WorkerPhotos workerId={worker.id} />
                   </button>
                 ))}
                 <Button

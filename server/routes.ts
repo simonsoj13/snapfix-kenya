@@ -290,6 +290,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Transactions ──────────────────────────────────────────────────────────
 
+  app.post("/api/transactions/pending", async (req, res) => {
+    try {
+      const tx = await storage.createTransaction({
+        ...req.body,
+        status: "pending",
+      });
+      res.json(tx);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   app.get("/api/admin/transactions", async (_req, res) => {
     const txs = await storage.getAllTransactions();
     res.json(txs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
