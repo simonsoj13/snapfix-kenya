@@ -65,6 +65,10 @@ export interface IStorage {
 
   getAllTransactions(): Promise<Transaction[]>;
   getTransactionsByUser(userId: string): Promise<Transaction[]>;
+  getTransactionsByWorker(workerId: string): Promise<Transaction[]>;
+  getTransactionsByJob(jobId: string): Promise<Transaction[]>;
+  getTransactionById(id: string): Promise<Transaction | null | undefined>;
+  updateTransactionStatus(id: string, status: string): Promise<Transaction | null | undefined>;
   createTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction>;
   reverseTransaction(id: string): Promise<Transaction | undefined>;
 
@@ -510,6 +514,14 @@ export class MemStorage implements IStorage {
 
   async getTransactionsByUser(userId: string) {
     return Array.from(this.transactions.values()).filter((t) => t.userId === userId);
+  }
+
+  async getTransactionsByWorker(workerId: string) {
+    return Array.from(this.transactions.values()).filter((t) => t.workerId === workerId);
+  }
+
+  async getTransactionsByJob(jobId: string) {
+    return Array.from(this.transactions.values()).filter((t) => t.jobId === jobId);
   }
 
   async createTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction> {

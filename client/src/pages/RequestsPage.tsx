@@ -226,15 +226,41 @@ export default function RequestsPage() {
   };
 
   const handleBalancePaid = async (req: ExtJobRequest) => {
-    await fetch(`/api/job-requests/${req.id}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed" }),
-    });
-    qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
-    setPayBalanceJob(null);
-    toast({ title: "Payment successful!", description: "Job marked as complete. Thank you!" });
-    setRatingJob(payBalanceJob);
+    const balance = (req.quotedAmount ?? 0) - (req.depositAmount ?? 0);
+    try {
+      // Create a pending balance transaction so admin can verify before completing the job
+      await fetch("/api/transactions/pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: req.id,
+          userId,
+          workerId: req.workerId,
+          customerName: user?.name ?? "Customer",
+          workerName: "",
+          amount: balance,
+          type: "balance",
+          status: "pending",
+          phone: user?.phone ?? "",
+          mpesaRef: "PENDING-" + Date.now(),
+          category: req.category,
+        }),
+      });
+      // Move job into "balance-paid-pending" — admin must approve before it becomes completed
+      await fetch(`/api/job-requests/${req.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "balance-paid-pending" }),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
+      setPayBalanceJob(null);
+      toast({
+        title: "Balance payment recorded",
+        description: "Waiting for admin to confirm. Your job will be marked complete once approved.",
+      });
+    } catch {
+      toast({ title: "Failed to record payment", variant: "destructive" });
+    }
   };
 
   if (isLoading) {
@@ -318,6 +344,28 @@ export default function RequestsPage() {
             return (
               <Card key={req.id} data-testid={`card-request-${req.id}`}>
                 <CardContent className="p-6 space-y-4">
+
+                  {/* ── Awaiting deposit approval banner ── */}
+                  {req.status === "awaiting-deposit-approval" && (
+                    <div className="flex items-center gap-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg px-4 py-3">
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-sm">Waiting for admin to confirm your deposit</p>
+                        <p className="text-xs mt-0.5 opacity-80">Once verified your fundi will be notified and you can proceed.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Balance payment awaiting admin approval ── */}
+                  {req.status === "balance-paid-pending" && (
+                    <div className="flex items-center gap-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg px-4 py-3">
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-sm">Waiting for admin to confirm your balance payment</p>
+                        <p className="text-xs mt-0.5 opacity-80">Your job will be marked complete once verified.</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Worker on the way banner ── */}
                   {isOnTheWay && req.status === "deposit-paid" && (

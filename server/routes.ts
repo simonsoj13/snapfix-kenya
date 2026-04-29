@@ -317,7 +317,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const tx = await storage.getTransactionById(req.params.id);
     if (!tx) return res.status(404).json({ error: "Transaction not found" });
     const updated = await storage.updateTransactionStatus(req.params.id, "completed");
+
+    // Cascade: update the linked job request so customer + fundi can see progress
+    if (tx.jobId) {
+      if (tx.type === "deposit") {
+        await storage.updateJobRequest(tx.jobId, {
+          status: "deposit-paid",
+          workerContactShown: 1,
+        });
+      } else if (tx.type === "balance") {
+        await storage.updateJobRequest(tx.jobId, { status: "completed" });
+      }
+    }
     res.json(updated);
+  });
+
+  app.get("/api/transactions/job/:jobId", async (req, res) => {
+    const txs = await storage.getTransactionsByJob(req.params.jobId);
+    res.json(txs);
+  });
+
+  app.get("/api/transactions/worker/:workerId", async (req, res) => {
+    const txs = await storage.getTransactionsByWorker(req.params.workerId);
+    res.json(txs);
+  });
+
+  app.get("/api/transactions/user/:userId", async (req, res) => {
+    const txs = await storage.getTransactionsByUser(req.params.userId);
+    res.json(txs);
   });
 
   app.get("/api/admin/company-balance", async (_req, res) => {

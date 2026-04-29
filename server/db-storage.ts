@@ -118,6 +118,16 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTransactions() { return Array.from(transactions.values()); }
   async getTransactionsByUser(userId: string) { return Array.from(transactions.values()).filter(t => t.userId === userId); }
+  async getTransactionsByWorker(workerId: string) { return Array.from(transactions.values()).filter(t => t.workerId === workerId); }
+  async getTransactionsByJob(jobId: string) { return Array.from(transactions.values()).filter(t => t.jobId === jobId); }
+  async getTransactionById(id: string) { return transactions.get(id) ?? null; }
+  async updateTransactionStatus(id: string, status: string) {
+    const tx = transactions.get(id);
+    if (!tx) return null;
+    const updated = { ...tx, status: status as Transaction["status"] };
+    transactions.set(id, updated);
+    return updated;
+  }
   async createTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction> {
     const id = randomUUID();
     const newTx = { ...tx, id, createdAt: new Date().toISOString() };

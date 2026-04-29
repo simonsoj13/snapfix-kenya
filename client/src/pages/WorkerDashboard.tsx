@@ -22,14 +22,16 @@ import type { JobRequest } from "@shared/schema";
 import snapfixLogo from "/snapfix-logo.jpg";
 
 const STATUS_BADGE: Record<string, { label: string; class: string }> = {
-  pending:          { label: "Pending",       class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
-  quoted:           { label: "Quoted",        class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  "deposit-paid":   { label: "Deposit Paid",  class: "bg-primary/10 text-primary" },
-  "fundi-arrived":  { label: "Fundi Arrived", class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
-  "in-progress":    { label: "In Progress",   class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
-  "balance-due":    { label: "Balance Due",   class: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
-  completed:        { label: "Completed",     class: "bg-green-500/10 text-green-600 dark:text-green-400" },
-  cancelled:        { label: "Cancelled",     class: "bg-destructive/10 text-destructive" },
+  pending:                     { label: "Pending",                   class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
+  quoted:                      { label: "Quoted",                    class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  "awaiting-deposit-approval": { label: "Awaiting Admin Approval",   class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
+  "deposit-paid":              { label: "Deposit Confirmed",         class: "bg-primary/10 text-primary" },
+  "fundi-arrived":             { label: "Fundi Arrived",             class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  "in-progress":               { label: "In Progress",               class: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  "balance-due":               { label: "Balance Due",               class: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+  "balance-paid-pending":      { label: "Balance Awaiting Approval", class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
+  completed:                   { label: "Completed",                 class: "bg-green-500/10 text-green-600 dark:text-green-400" },
+  cancelled:                   { label: "Cancelled",                 class: "bg-destructive/10 text-destructive" },
 };
 
 
@@ -163,8 +165,8 @@ export default function WorkerDashboard() {
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!user) { navigate("/login"); return null; }
 
-  const availableJobs = jobs.filter((j) => ["pending", "quoted", "deposit-paid"].includes(j.status));
-  const activeJobs    = jobs.filter((j) => ["in-progress", "fundi-arrived", "balance-due"].includes(j.status));
+  const availableJobs = jobs.filter((j) => ["pending", "quoted", "awaiting-deposit-approval", "deposit-paid"].includes(j.status));
+  const activeJobs    = jobs.filter((j) => ["in-progress", "fundi-arrived", "balance-due", "balance-paid-pending"].includes(j.status));
   const completedJobs = jobs.filter((j) => j.status === "completed");
 
   const walletBalance = walletUser?.walletBalance ?? 0;

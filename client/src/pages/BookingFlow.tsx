@@ -288,7 +288,7 @@ export default function BookingFlow() {
           description,
           category: aiCategory,
           area,
-          status: "deposit-paid",
+          status: "awaiting-deposit-approval",
           location,
           isNow: isNow ? 1 : 0,
           preferredDate: isNow ? null : `${scheduledDate} ${scheduledTime}`.trim(),
@@ -297,7 +297,7 @@ export default function BookingFlow() {
           quotedMax: quote.max,
           quotedAmount: quote.midpoint,
           depositAmount: quote.deposit,
-          workerContactShown: 1,
+          workerContactShown: 0,
         }),
       });
       const data = await res.json();
@@ -309,14 +309,15 @@ export default function BookingFlow() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobRequestId: data.id,
+          jobId: data.id,
           userId: user.id,
+          workerId: selectedWorker.id,
           customerName: user.name,
           workerName: selectedWorker.name,
           amount: quote.deposit,
           type: "deposit",
           status: "pending",
-          phone: user.phone,
+          phone: user.phone || "",
           mpesaRef: "PENDING-" + Date.now(),
           category: aiCategory,
         }),
@@ -333,13 +334,8 @@ export default function BookingFlow() {
   const handlePaymentSuccess = async () => {
     setShowStk(false);
     setPaymentDone(true);
-    if (jobRequest) {
-      await fetch(`/api/job-requests/${jobRequest.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "completed" }),
-      });
-    }
+    // Customer has confirmed they paid the deposit via M-Pesa till.
+    // Job remains "awaiting-deposit-approval" until admin verifies the payment.
   };
 
   const handleFinish = () => {
@@ -773,28 +769,37 @@ export default function BookingFlow() {
               </CardContent>
             </Card>
 
-            <Button
-              className="w-full bg-green-600"
-              onClick={() => setShowStk(true)}
-              data-testid="button-pay-deposit"
-            >
-              <Smartphone className="w-4 h-4 mr-2" />
-              Pay Deposit KES {quote?.deposit.toLocaleString()} via M-Pesa
-            </Button>
-
-            {showStk && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-md p-4 text-center space-y-2">
-                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Waiting for admin to confirm your payment…</p>
-                <p className="text-xs text-muted-foreground">You will be able to proceed once payment is verified.</p>
-              </div>
+            {!paymentDone ? (
+              <Button
+                className="w-full bg-green-600"
+                onClick={() => setShowStk(true)}
+                data-testid="button-pay-deposit"
+              >
+                <Smartphone className="w-4 h-4 mr-2" />
+                Pay Deposit KES {quote?.deposit.toLocaleString()} via M-Pesa
+              </Button>
+            ) : (
+              <>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-md p-4 text-center space-y-2">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Waiting for admin to confirm your payment…</p>
+                  <p className="text-xs text-muted-foreground">Once verified your fundi will be notified and you can continue.</p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => { clearDraft(); navigate("/requests"); }}
+                  data-testid="button-view-requests"
+                >
+                  View My Requests
+                </Button>
+              </>
             )}
 
             <PaymentDialog
               open={showStk}
               amount={quote?.deposit ?? 0}
               label="Deposit Payment"
-              onClose={() => setShowStk(true)}
+              onClose={handlePaymentSuccess}
             />
           </div>
         )}
