@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import ReviewCard from "@/components/ReviewCard";
-import { Star, CheckCircle2, MapPin, Clock, Briefcase, Calendar } from "lucide-react";
-import type { Worker } from "@shared/schema";
+import { Star, CheckCircle2, MapPin, Clock, Briefcase, Calendar, MessageSquare } from "lucide-react";
+import type { Worker, Review } from "@shared/schema";
 import { getWorkerImage } from "@/lib/workerImages";
 
 interface WorkerProfileModalProps {
@@ -25,33 +26,20 @@ interface WorkerProfileModalProps {
   prefillDescription?: string;
 }
 
-//todo: remove mock functionality
-const mockReviews = [
-  {
-    id: "1",
-    reviewerName: "Sarah M.",
-    rating: 5,
-    date: "2 weeks ago",
-    comment: "Excellent work! Fixed everything quickly and professionally. Very clean and tidy.",
-    verified: true,
-  },
-  {
-    id: "2",
-    reviewerName: "James K.",
-    rating: 5,
-    date: "1 month ago",
-    comment: "Very responsive and arrived on time. Highly recommend!",
-    verified: true,
-  },
-  {
-    id: "3",
-    reviewerName: "Linda P.",
-    rating: 4,
-    date: "2 months ago",
-    comment: "Great service, fair pricing. Will definitely call again.",
-    verified: false,
-  },
-];
+function timeAgo(iso: string): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} day${d === 1 ? "" : "s"} ago`;
+  if (d < 30) return `${Math.floor(d / 7)} week${Math.floor(d / 7) === 1 ? "" : "s"} ago`;
+  if (d < 365) return `${Math.floor(d / 30)} month${Math.floor(d / 30) === 1 ? "" : "s"} ago`;
+  return `${Math.floor(d / 365)} yr ago`;
+}
 
 export default function WorkerProfileModal({
   worker,
@@ -65,6 +53,16 @@ export default function WorkerProfileModal({
   const [location, setLocation] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: allReviews = [] } = useQuery<Review[]>({
+    queryKey: ["/api/reviews"],
+    enabled: open && !!worker,
+  });
+  const workerReviews = worker
+    ? allReviews
+        .filter((r) => r.workerId === worker.id)
+        .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+    : [];
 
   if (!worker) return null;
 
@@ -157,11 +155,25 @@ export default function WorkerProfileModal({
         {/* Reviews */}
         <div>
           <h3 className="font-semibold mb-3">Recent Reviews</h3>
-          <div className="space-y-3">
-            {mockReviews.map((review) => (
-              <ReviewCard key={review.id} {...review} />
-            ))}
-          </div>
+          {workerReviews.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground" data-testid="empty-reviews">
+              <MessageSquare className="w-6 h-6" />
+              <p className="text-sm">No reviews yet — be the first to hire this fundi!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {workerReviews.slice(0, 5).map((review) => (
+                <ReviewCard
+                  key={review.id}
+                  reviewerName={review.customerName}
+                  rating={review.rating}
+                  date={timeAgo(review.createdAt)}
+                  comment={review.comment}
+                  verified={true}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <Separator />

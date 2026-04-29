@@ -105,16 +105,9 @@ export default function HomePage() {
 
   const firstName = user?.name?.split(" ")[0] ?? "there";
 
-  const displayedReviews = reviews.length > 0
-    ? reviews.slice(0, 6)
-    : [
-        { id: "m1", customerName: "Alice Wanjiku", comment: "Fixed our burst pipe within 30 minutes. Professional and very clean work!", rating: 5, jobCategory: "Plumbing", createdAt: "" },
-        { id: "m2", customerName: "James Kariuki",  comment: "Sarah rewired our apartment safely. Knowledgeable and explains everything.", rating: 5, jobCategory: "Electrical", createdAt: "" },
-        { id: "m3", customerName: "Mary Njoku",     comment: "Built us custom kitchen cabinets. The craftsmanship is outstanding!", rating: 5, jobCategory: "Carpentry", createdAt: "" },
-        { id: "m4", customerName: "Peter Omondi",   comment: "HVAC fixed within an hour. Came prepared with all spare parts. Highly recommend!", rating: 5, jobCategory: "HVAC", createdAt: "" },
-        { id: "m5", customerName: "Fatuma Hassan",  comment: "Very professional woman fundi! Fixed my power issues fast and safely.", rating: 5, jobCategory: "Electrical", createdAt: "" },
-        { id: "m6", customerName: "Tom Mbugua",     comment: "Repaired my washing machine in 20 minutes. Honest pricing, great service.", rating: 4, jobCategory: "Appliance", createdAt: "" },
-      ];
+  const displayedReviews = [...reviews]
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+    .slice(0, 6);
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
