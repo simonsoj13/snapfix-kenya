@@ -43,6 +43,7 @@ export interface IStorage {
   getAllWorkers(): Promise<Worker[]>;
   updateWorkerAvailability(id: string, availableNow: number): Promise<Worker | undefined>;
   updateWorkerRating(id: string, rating: number, reviewCount: number): Promise<Worker | undefined>;
+  updateWorker(id: string, updates: Partial<Worker>): Promise<Worker | undefined>;
   searchWorkers(filters: {
     specialty?: string;
     maxDistance?: number;
@@ -423,6 +424,14 @@ export class MemStorage implements IStorage {
     const w = this.workers.get(id);
     if (!w) return undefined;
     const updated = { ...w, availableNow };
+    this.workers.set(id, updated);
+    return updated;
+  }
+
+  async updateWorker(id: string, updates: Partial<Worker>) {
+    const w = this.workers.get(id);
+    if (!w) return undefined;
+    const updated = { ...w, ...updates };
     this.workers.set(id, updated);
     return updated;
   }

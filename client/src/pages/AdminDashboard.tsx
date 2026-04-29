@@ -543,7 +543,7 @@ export default function AdminDashboard() {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="w-9 h-9">
-                                <AvatarImage src={getWorkerImage(worker.specialty)} alt={worker.name} />
+                                <AvatarImage src={worker.profileImage || getWorkerImage(worker.specialty)} alt={worker.name} />
                                 <AvatarFallback>{worker.name.charAt(0)}</AvatarFallback>
                               </Avatar>
                               <div>

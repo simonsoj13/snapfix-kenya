@@ -88,7 +88,7 @@ export default function WorkerProfileModal({
         {/* Header */}
         <div className="flex items-start gap-4">
           <Avatar className="w-20 h-20 flex-shrink-0">
-            <AvatarImage src={getWorkerImage(worker.specialty)} alt={worker.name} />
+            <AvatarImage src={worker.profileImage || getWorkerImage(worker.specialty)} alt={worker.name} />
             <AvatarFallback className="text-2xl">{worker.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">

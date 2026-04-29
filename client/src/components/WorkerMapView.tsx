@@ -64,7 +64,7 @@ export default function WorkerMapView({
               <div className="p-2 min-w-[200px]">
                 <div className="flex items-center gap-3 mb-2">
                   <Avatar className="w-12 h-12">
-                    <AvatarImage src={getWorkerImage(worker.specialty)} alt={worker.name} />
+                    <AvatarImage src={worker.profileImage || getWorkerImage(worker.specialty)} alt={worker.name} />
                     <AvatarFallback>{worker.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>

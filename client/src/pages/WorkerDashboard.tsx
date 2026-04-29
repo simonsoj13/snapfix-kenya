@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -162,6 +162,40 @@ export default function WorkerDashboard() {
     enabled: !!user?.id,
   });
 
+  const { data: workerProfile, refetch: refetchWorkerProfile } = useQuery({
+    queryKey: ["/api/workers", user?.id],
+    queryFn: () => fetch(`/api/workers/${user?.id}`).then((r) => r.ok ? r.json() : null),
+    enabled: !!user?.id,
+  });
+
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const handleUploadProfilePhoto = async (file: File) => {
+    if (!user) return;
+    setPhotoUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch(`/api/workers/${user.id}/profile-image`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileImage: base64 }),
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      await refetchWorkerProfile();
+      qc.invalidateQueries({ queryKey: ["/api/workers"] });
+      qc.invalidateQueries({ queryKey: ["/api/workers/search"] });
+      toast({ title: "Profile photo updated", description: "Customers and admin will now see your new photo." });
+    } catch {
+      toast({ title: "Failed to upload photo", variant: "destructive" });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   if (authLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!user) { navigate("/login"); return null; }
 
@@ -313,6 +347,7 @@ export default function WorkerDashboard() {
         </div>
         <div className="flex items-center gap-3">
           <Avatar className="w-14 h-14 border-2 border-white/30">
+            {workerProfile?.profileImage && <AvatarImage src={workerProfile.profileImage} alt={user?.name} />}
             <AvatarFallback className="bg-white/20 text-white font-bold text-lg">{initials}</AvatarFallback>
           </Avatar>
           <div>
@@ -552,6 +587,44 @@ export default function WorkerDashboard() {
 
           {/* ── Verify tab ── */}
           <TabsContent value="profile" className="space-y-4">
+            {/* Profile photo */}
+            <Card>
+              <CardContent className="py-4">
+                <h3 className="font-semibold text-base mb-3">Your Profile Photo</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  This is the photo customers and admin see for you. Upload a clear, friendly photo of your face.
+                </p>
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-20 h-20 border-2 border-primary/20">
+                    {workerProfile?.profileImage && <AvatarImage src={workerProfile.profileImage} alt={user?.name} />}
+                    <AvatarFallback className="text-2xl bg-primary/10 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <input
+                      id="profile-photo-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadProfilePhoto(f); e.target.value = ""; }}
+                      data-testid="input-profile-photo"
+                    />
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => document.getElementById("profile-photo-input")?.click()}
+                      disabled={photoUploading}
+                      data-testid="button-upload-profile-photo"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {photoUploading
+                        ? "Uploading..."
+                        : workerProfile?.profileImage ? "Replace Photo" : "Upload Photo"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Status card */}
             {verifyStatus ? (
               <Card className={verifyStatus.status === "approved" ? "border-green-500/30" : verifyStatus.status === "rejected" ? "border-destructive/30" : "border-yellow-500/30"}>

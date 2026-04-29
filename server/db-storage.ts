@@ -77,6 +77,10 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(workers).set({ availableNow }).where(eq(workers.id, id)).returning();
     return updated;
   }
+  async updateWorker(id: string, updates: Partial<Worker>) {
+    const [updated] = await db.update(workers).set(updates).where(eq(workers.id, id)).returning();
+    return updated;
+  }
   async searchWorkers(filters: { specialty?: string; maxDistance?: number; minRating?: number; availableNow?: boolean; verified?: boolean }) {
     let list = await db.select().from(workers);
     if (filters.specialty) list = list.filter(w => w.specialty.toLowerCase() === filters.specialty!.toLowerCase());

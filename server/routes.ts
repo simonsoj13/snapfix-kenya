@@ -615,6 +615,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(worker);
   });
 
+  // Fundi uploads / replaces their own profile photo
+  app.patch("/api/workers/:id/profile-image", async (req, res) => {
+    try {
+      const { profileImage } = req.body;
+      if (!profileImage) return res.status(400).json({ error: "profileImage required" });
+      const url = profileImage.startsWith("data:")
+        ? await uploadImage(profileImage, "worker-profile")
+        : profileImage;
+      const worker = await storage.updateWorker(req.params.id, { profileImage: url });
+      if (!worker) return res.status(404).json({ error: "Worker not found" });
+      res.json(worker);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

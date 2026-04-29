@@ -598,7 +598,7 @@ export default function BookingFlow() {
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="w-12 h-12 flex-shrink-0">
-                        <AvatarImage src={getWorkerImage(worker.specialty)} alt={worker.name} />
+                        <AvatarImage src={worker.profileImage || getWorkerImage(worker.specialty)} alt={worker.name} />
                         <AvatarFallback>{worker.name[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
@@ -655,7 +655,7 @@ export default function BookingFlow() {
             <Card>
               <CardContent className="py-4 flex items-center gap-3">
                 <Avatar className="w-12 h-12">
-                  <AvatarImage src={getWorkerImage(selectedWorker.specialty)} />
+                  <AvatarImage src={selectedWorker.profileImage || getWorkerImage(selectedWorker.specialty)} />
                   <AvatarFallback>{selectedWorker.name[0]}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
@@ -749,7 +749,7 @@ export default function BookingFlow() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">
                     <Avatar className="w-10 h-10">
-                      <AvatarImage src={getWorkerImage(selectedWorker.specialty)} />
+                      <AvatarImage src={selectedWorker.profileImage || getWorkerImage(selectedWorker.specialty)} />
                       <AvatarFallback>{selectedWorker.name[0]}</AvatarFallback>
                     </Avatar>
                     <div>
