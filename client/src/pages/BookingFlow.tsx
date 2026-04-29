@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -169,29 +169,27 @@ export default function BookingFlow() {
 
   const STORAGE_KEY = "snapfix_booking_draft";
 
-  const loadDraft = () => {
+  const loadDraft = (): any => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return null;
+    return {};
   };
+  const draft = loadDraft();
 
-  const [step, setStep] = useState(() => {
-    const draft = loadDraft();
-    return draft?.step ?? 0;
-  });
+  const [step, setStep] = useState<number>(draft.step ?? 0);
 
   // Step 0
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState<string>(draft.imageUrl ?? "");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiCategory, setAiCategory] = useState(urlCategory || "General");
+  const [aiCategory, setAiCategory] = useState<string>(draft.aiCategory ?? urlCategory ?? "General");
 
   // Step 1
-  const [area, setArea] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [area, setArea] = useState<string>(draft.area ?? "");
+  const [description, setDescription] = useState<string>(draft.description ?? "");
+  const [location, setLocation] = useState<string>(draft.location ?? "");
 
   // Step 2
   const [quote, setQuote] = useState<QuoteResult | null>(null);
@@ -201,9 +199,9 @@ export default function BookingFlow() {
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
 
   // Step 4
-  const [isNow, setIsNow] = useState(true);
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("");
+  const [isNow, setIsNow] = useState<boolean>(draft.isNow ?? true);
+  const [scheduledDate, setScheduledDate] = useState<string>(draft.scheduledDate ?? "");
+  const [scheduledTime, setScheduledTime] = useState<string>(draft.scheduledTime ?? "");
   const [depositLoading, setDepositLoading] = useState(false);
 
   // Step 5
@@ -215,8 +213,12 @@ export default function BookingFlow() {
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
 
-  // Save booking progress to localStorage
-  const saveDraft = () => {
+  // Clear draft when booking complete
+  const clearDraft = () => { try { localStorage.removeItem(STORAGE_KEY); } catch {} };
+
+  // Auto-save on any field change so an accidental Home press doesn't lose progress
+  useEffect(() => {
+    if (step >= 5) return; // don't save once booking is confirmed
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         step, area, description, location, aiCategory,
@@ -225,13 +227,7 @@ export default function BookingFlow() {
         imageUrl,
       }));
     } catch {}
-  };
-
-  // Auto-save on step change
-  useState(() => { saveDraft(); });
-
-  // Clear draft when booking complete
-  const clearDraft = () => { try { localStorage.removeItem(STORAGE_KEY); } catch {} };
+  }, [step, area, description, location, aiCategory, isNow, scheduledDate, scheduledTime, selectedWorker, imageUrl]);
 
   const { data: workers = [] } = useQuery<Worker[]>({
     queryKey: ["/api/workers/search", aiCategory],

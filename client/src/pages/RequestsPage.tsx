@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -15,73 +14,61 @@ import type { JobRequest } from "@shared/schema";
 import {
   Calendar, MapPin, Wrench, Zap, Navigation, Eye, Image,
   CheckCircle2, Smartphone, Banknote, UserX, UserCheck, ClipboardCheck,
+  ArrowRight, X,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
 type ExtJobRequest = JobRequest & { workerOnWay?: number; estimatedArrival?: string | null };
 
-/* ── M-Pesa STK Push Dialog ──────────────────────────────────────────── */
+/* ── M-Pesa Till Payment Dialog ──────────────────────────────────────── */
 function StkPushDialog({
-  open, amount, phone, onSuccess, onClose,
+  open, amount, onSuccess, onClose,
 }: { open: boolean; amount: number; phone: string; onSuccess: () => void; onClose: () => void }) {
-  const [processing, setProcessing] = useState(false);
-  const [pin, setPin] = useState("");
-
-  const handleConfirm = async () => {
-    if (pin.length < 4) return;
-    setProcessing(true);
-    await new Promise((r) => setTimeout(r, 2200));
-    setProcessing(false);
-    onSuccess();
-  };
-
-
-
-
-  
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-green-600" /> M-Pesa STK Push
+            <Smartphone className="w-5 h-5 text-green-600" /> Pay Balance via M-Pesa
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-5">
-          <div className="bg-green-500/10 rounded-md p-4 text-center space-y-1">
-            <p className="text-xs text-muted-foreground">Balance payment to</p>
-            <p className="text-2xl font-bold text-green-700 dark:text-green-400">
-              KES {amount.toLocaleString()}
+          <div className="bg-green-500/10 border border-green-500/20 rounded-md p-4 text-center space-y-3">
+            <p className="text-sm font-semibold text-muted-foreground">Balance Payment</p>
+            <p className="text-3xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
+          </div>
+
+          <div className="bg-muted rounded-md p-4 text-center space-y-1">
+            <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
+            <p className="text-4xl font-bold tracking-widest text-primary" data-testid="text-till-number">324225</p>
+            <p className="text-xs text-muted-foreground">Snap-Fix Kenya</p>
+          </div>
+
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>1. Open M-Pesa on your phone</p>
+            <p>2. Select <strong>Lipa na M-Pesa</strong></p>
+            <p>3. Select <strong>Buy Goods & Services</strong></p>
+            <p>4. Enter Till: <strong>324225</strong></p>
+            <p>5. Enter amount: <strong>KES {amount.toLocaleString()}</strong></p>
+            <p>6. Enter your PIN and confirm</p>
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-3">
+            <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+              After paying, tap below so admin can verify and complete your job.
             </p>
-            <p className="text-xs text-muted-foreground">{phone}</p>
           </div>
-          <p className="text-sm text-muted-foreground text-center">
-            A push notification has been sent to your phone. Enter your M-Pesa PIN to confirm.
-          </p>
-          <div className="space-y-1.5">
-            <Label>M-Pesa PIN</Label>
-            <Input
-              type="password"
-              maxLength={4}
-              placeholder="Enter 4-digit PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              data-testid="input-mpesa-pin"
-            />
-          </div>
+
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" className="flex-1" onClick={onClose} data-testid="button-cancel-payment">
+              Cancel
+            </Button>
             <Button
               className="flex-1 bg-green-600 gap-2"
-              disabled={pin.length < 4 || processing}
-              onClick={handleConfirm}
+              onClick={onSuccess}
               data-testid="button-confirm-payment"
             >
-              {processing ? (
-                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing…</>
-              ) : (
-                <><CheckCircle2 className="w-4 h-4" /> Confirm Payment</>
-              )}
+              <CheckCircle2 className="w-4 h-4" /> I have paid
             </Button>
           </div>
         </div>
@@ -147,6 +134,24 @@ export default function RequestsPage() {
   const [starRating, setStarRating] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
+
+  // ── Detect unfinished booking draft so user can resume ──────────────
+  const [draft, setDraft] = useState<{ step?: number; aiCategory?: string; description?: string } | null>(null);
+  useEffect(() => {
+    const check = () => {
+      try {
+        const saved = localStorage.getItem("snapfix_booking_draft");
+        if (!saved) { setDraft(null); return; }
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.step === "number" && parsed.step > 0) setDraft(parsed);
+        else setDraft(null);
+      } catch { setDraft(null); }
+    };
+    check();
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, []);
+  const dismissDraft = () => { try { localStorage.removeItem("snapfix_booking_draft"); } catch {}; setDraft(null); };
 
   const handleConfirmArrived = async (jobId: string) => {
     try {
@@ -247,11 +252,34 @@ export default function RequestsPage() {
     );
   }
 
+  const draftBanner = draft && (
+    <Card className="mb-6 border-primary/40 bg-primary/5" data-testid="card-resume-draft">
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+          <ClipboardCheck className="w-5 h-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm" data-testid="text-draft-title">Continue your booking</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {draft.aiCategory ? `${draft.aiCategory} request` : "Repair request"} — saved at step {(draft.step ?? 0) + 1}
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={() => navigate("/book")} data-testid="button-resume-draft">
+          Resume <ArrowRight className="w-4 h-4" />
+        </Button>
+        <Button size="icon" variant="ghost" onClick={dismissDraft} data-testid="button-dismiss-draft">
+          <X className="w-4 h-4" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   if (requests.length === 0) {
     return (
       <div className="min-h-screen pb-20 md:pb-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
           <h1 className="text-2xl font-semibold mb-6">My Requests</h1>
+          {draftBanner}
           <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
             <Wrench className="w-16 h-16 text-muted-foreground" />
             <div>
@@ -278,6 +306,8 @@ export default function RequestsPage() {
             + New Request
           </Button>
         </div>
+
+        {draftBanner}
 
         <div className="space-y-4">
           {requests.map((req) => {
