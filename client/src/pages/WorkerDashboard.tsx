@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import NotificationPanel from "@/components/NotificationPanel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -340,6 +341,9 @@ export default function WorkerDashboard() {
               {isOnline ? "Online" : "Offline"}
             </Button>
             <Badge className="bg-white/20 text-white border-0 text-xs">Fundi</Badge>
+            <div className="text-white [&_button]:text-white [&_button:hover]:bg-white/10">
+              <NotificationPanel />
+            </div>
             <Button variant="ghost" size="icon" className="text-white" onClick={() => { logout(); navigate("/login"); }} data-testid="button-logout">
               <LogOut className="w-4 h-4" />
             </Button>

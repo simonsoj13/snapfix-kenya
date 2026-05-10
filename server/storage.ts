@@ -81,6 +81,24 @@ export interface IStorage {
   getPricingConfig(): Promise<PricingConfig[]>;
   createWorkerFromVerification(verification: WorkerVerification, user: any): Promise<any>;
   updatePricingConfig(category: string, config: Partial<PricingConfig>): Promise<PricingConfig | undefined>;
+
+  // Notifications
+  getNotificationsByUser(userId: string): Promise<AppNotification[]>;
+  createNotification(n: Omit<AppNotification, "id" | "createdAt">): Promise<AppNotification>;
+  markNotificationRead(id: string): Promise<AppNotification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  getUnreadCount(userId: string): Promise<number>;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  jobId?: string | null;
+  isRead: boolean;
+  createdAt: string;
 }
 
 export class MemStorage implements IStorage {
@@ -92,6 +110,7 @@ export class MemStorage implements IStorage {
   private supportTickets: Map<string, SupportTicket> = new Map();
   private pricingConfig: Map<string, PricingConfig> = new Map();
   private workerVerifications: Map<string, WorkerVerification> = new Map();
+  private notifications: Map<string, AppNotification> = new Map();
   private seededWorkerIds: string[] = [];
   _resetCodes: Record<string, string> = {};
 
@@ -591,6 +610,37 @@ export class MemStorage implements IStorage {
     const updated = { ...current, ...config };
     this.pricingConfig.set(category, updated);
     return updated;
+  }
+
+  async getNotificationsByUser(userId: string): Promise<AppNotification[]> {
+    return Array.from(this.notifications.values())
+      .filter(n => n.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createNotification(n: Omit<AppNotification, "id" | "createdAt">): Promise<AppNotification> {
+    const id = randomUUID();
+    const notification: AppNotification = { ...n, id, createdAt: new Date().toISOString() };
+    this.notifications.set(id, notification);
+    return notification;
+  }
+
+  async markNotificationRead(id: string): Promise<AppNotification | undefined> {
+    const n = this.notifications.get(id);
+    if (!n) return undefined;
+    const updated = { ...n, isRead: true };
+    this.notifications.set(id, updated);
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    for (const [id, n] of this.notifications.entries()) {
+      if (n.userId === userId) this.notifications.set(id, { ...n, isRead: true });
+    }
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    return Array.from(this.notifications.values()).filter(n => n.userId === userId && !n.isRead).length;
   }
 }
 

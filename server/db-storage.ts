@@ -14,6 +14,7 @@ const db = drizzle(pool);
 const reviews: Map<string, Review> = new Map();
 const transactions: Map<string, Transaction> = new Map();
 const supportTickets: Map<string, SupportTicket> = new Map();
+const notifications: Map<string, import("./storage").AppNotification> = new Map();
 const resetCodes: Record<string, string> = {};
 let pricingConfig: Map<string, PricingConfig> = new Map([
   ["Plumbing",   { category: "Plumbing",   baseMin: 2500, baseMax: 6000,  depositPercent: 0.3  }],
@@ -207,6 +208,38 @@ export class DatabaseStorage implements IStorage {
     const updated = { ...existing, ...config };
     pricingConfig.set(category, updated);
     return updated;
+  }
+
+  async getNotificationsByUser(userId: string) {
+    return Array.from(notifications.values())
+      .filter(n => n.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createNotification(n: Omit<import("./storage").AppNotification, "id" | "createdAt">) {
+    const { randomUUID } = await import("crypto");
+    const id = randomUUID();
+    const notification = { ...n, id, createdAt: new Date().toISOString() };
+    notifications.set(id, notification);
+    return notification;
+  }
+
+  async markNotificationRead(id: string) {
+    const n = notifications.get(id);
+    if (!n) return undefined;
+    const updated = { ...n, isRead: true };
+    notifications.set(id, updated);
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string) {
+    for (const [id, n] of notifications.entries()) {
+      if (n.userId === userId) notifications.set(id, { ...n, isRead: true });
+    }
+  }
+
+  async getUnreadCount(userId: string) {
+    return Array.from(notifications.values()).filter(n => n.userId === userId && !n.isRead).length;
   }
 
   async createWorkerFromVerification(verification: WorkerVerification, user: any) {

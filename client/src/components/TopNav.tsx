@@ -1,23 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/context/AuthContext";
+import NotificationPanel from "@/components/NotificationPanel";
 import snapfixLogo from "/snapfix-logo.jpg";
 
 interface TopNavProps {
   onMenuClick?: () => void;
   onSearchClick?: () => void;
-  onNotificationsClick?: () => void;
   onProfileClick?: () => void;
   onAdminClick?: () => void;
-  notificationCount?: number;
 }
 
 export default function TopNav({
-  onNotificationsClick,
   onProfileClick,
-  notificationCount = 0,
 }: TopNavProps) {
   const { user } = useAuth();
   const initials = user?.name
@@ -41,19 +37,7 @@ export default function TopNav({
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNotificationsClick}
-              data-testid="button-notifications"
-            >
-              <Bell className="w-5 h-5" />
-            </Button>
-            {notificationCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
-            )}
-          </div>
+          <NotificationPanel />
           <ThemeToggle />
           <Avatar
             className="w-8 h-8 cursor-pointer ml-1"

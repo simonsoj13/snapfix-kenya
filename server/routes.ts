@@ -216,11 +216,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/job-requests", async (req, res) => {
     try {
       let data = insertJobRequestSchema.parse(req.body);
-      // Upload image to Cloudinary if base64
       if (data.imageUrl && data.imageUrl.startsWith('data:')) {
         data = { ...data, imageUrl: await uploadImage(data.imageUrl, 'job-photos') };
       }
-      res.json(await storage.createJobRequest(data));
+      const job = await storage.createJobRequest(data);
+      // Notify assigned worker if one was set
+      if (job.workerId) {
+        storage.createNotification({
+          userId: job.workerId,
+          type: "new_job",
+          title: "New Job Request",
+          message: `You have a new ${job.category} job request. Accept or decline in your dashboard.`,
+          jobId: job.id,
+          isRead: false,
+        }).catch(() => {});
+      }
+      res.json(job);
     } catch (err: any) {
       res.status(400).json({ error: err.message || "Failed to create request" });
     }
@@ -318,15 +329,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!tx) return res.status(404).json({ error: "Transaction not found" });
     const updated = await storage.updateTransactionStatus(req.params.id, "completed");
 
-    // Cascade: update the linked job request so customer + fundi can see progress
     if (tx.jobId) {
       if (tx.type === "deposit") {
-        await storage.updateJobRequest(tx.jobId, {
-          status: "deposit-paid",
-          workerContactShown: 1,
-        });
+        const job = await storage.updateJobRequest(tx.jobId, { status: "deposit-paid", workerContactShown: 1 });
+        if (job) {
+          storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
+          if (job.workerId) storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
+        }
       } else if (tx.type === "balance") {
-        await storage.updateJobRequest(tx.jobId, { status: "completed" });
+        const job = await storage.updateJobRequest(tx.jobId, { status: "completed" });
+        if (job) {
+          storage.createNotification({ userId: job.userId, type: "job_completed", title: "Job Completed", message: `Your ${job.category} job is now complete. Thank you for using Snap-Fix!`, jobId: job.id, isRead: false }).catch(() => {});
+          if (job.workerId) storage.createNotification({ userId: job.workerId, type: "balance_paid", title: "Balance Payment Received", message: `Balance payment for your ${job.category} job has been confirmed. Funds will be credited to your wallet.`, jobId: job.id, isRead: false }).catch(() => {});
+        }
       }
     }
     res.json(updated);
@@ -525,6 +540,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       estimatedArrival: estimatedArrival ?? null,
     });
     if (!updated) return res.status(404).json({ error: "Job request not found" });
+    const eta = estimatedArrival ? ` ETA: ${estimatedArrival}.` : "";
+    storage.createNotification({ userId: updated.userId, type: "worker_on_way", title: "Fundi is On the Way", message: `Your Fundi is heading to you now.${eta}`, jobId: updated.id, isRead: false }).catch(() => {});
     res.json(updated);
   });
 
@@ -537,7 +554,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/admin/verifications/:userId", async (req, res) => {
     const { status, reviewNote } = req.body;
     if (!["approved", "rejected"].includes(status)) return res.status(400).json({ error: "status must be approved or rejected" });
-    // Get existing verification first to preserve photos
     const existing = await storage.getWorkerVerification(req.params.userId);
     if (!existing) return res.status(404).json({ error: "Verification not found" });
     const updated = await storage.upsertWorkerVerification(req.params.userId, {
@@ -548,7 +564,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserById(req.params.userId);
       if (user) {
         await storage.createWorkerFromVerification(updated, user);
+        storage.createNotification({ userId: req.params.userId, type: "verification_approved", title: "Verification Approved!", message: "Congratulations! Your Fundi profile has been approved. You can now receive job requests.", jobId: null, isRead: false }).catch(() => {});
       }
+    } else if (status === "rejected") {
+      const note = reviewNote ? ` Reason: ${reviewNote}` : "";
+      storage.createNotification({ userId: req.params.userId, type: "verification_rejected", title: "Verification Not Approved", message: `Your Fundi verification was not approved.${note} You can re-submit updated documents.`, jobId: null, isRead: false }).catch(() => {});
     }
     res.json(updated);
   });
@@ -587,24 +607,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fundi accepts a job
   app.patch("/api/job-requests/:id/accept", async (req, res) => {
     const job = await storage.updateJobRequest(req.params.id, { status: "in-progress" });
+    if (job) storage.createNotification({ userId: job.userId, type: "job_accepted", title: "Fundi Accepted Your Job", message: `Your ${job.category} request has been accepted. Your Fundi is getting ready.`, jobId: job.id, isRead: false }).catch(() => {});
     res.json(job);
   });
 
   // Fundi declines a job
   app.patch("/api/job-requests/:id/decline", async (req, res) => {
     const job = await storage.updateJobRequest(req.params.id, { status: "cancelled", workerId: null });
+    if (job) storage.createNotification({ userId: job.userId, type: "job_declined", title: "Fundi Unavailable", message: `The Fundi declined your ${job.category} request. Please book another available Fundi.`, jobId: job.id, isRead: false }).catch(() => {});
     res.json(job);
   });
 
   // Customer confirms fundi arrived
   app.patch("/api/job-requests/:id/arrived", async (req, res) => {
     const job = await storage.updateJobRequest(req.params.id, { status: "fundi-arrived" });
+    if (job && job.workerId) storage.createNotification({ userId: job.workerId, type: "fundi_arrived", title: "Arrival Confirmed", message: `Customer has confirmed your arrival for the ${job.category} job. Work can begin!`, jobId: job.id, isRead: false }).catch(() => {});
     res.json(job);
   });
 
   // Customer confirms work complete
   app.patch("/api/job-requests/:id/complete", async (req, res) => {
     const job = await storage.updateJobRequest(req.params.id, { status: "balance-due" });
+    if (job) {
+      storage.createNotification({ userId: job.userId, type: "balance_due", title: "Work Complete — Balance Due", message: `Great news! Your ${job.category} job is done. Please pay the remaining balance to finalise.`, jobId: job.id, isRead: false }).catch(() => {});
+      if (job.workerId) storage.createNotification({ userId: job.workerId, type: "balance_due", title: "Job Done — Awaiting Balance", message: `Customer confirmed your ${job.category} work is complete. Balance payment is pending.`, jobId: job.id, isRead: false }).catch(() => {});
+    }
     res.json(job);
   });
 
@@ -629,6 +656,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
+  });
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  app.get("/api/notifications/:userId", async (req, res) => {
+    res.json(await storage.getNotificationsByUser(req.params.userId));
+  });
+
+  app.get("/api/notifications/:userId/unread-count", async (req, res) => {
+    res.json({ count: await storage.getUnreadCount(req.params.userId) });
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    const n = await storage.markNotificationRead(req.params.id);
+    if (!n) return res.status(404).json({ error: "Notification not found" });
+    res.json(n);
+  });
+
+  app.patch("/api/notifications/user/:userId/read-all", async (req, res) => {
+    await storage.markAllNotificationsRead(req.params.userId);
+    res.json({ success: true });
   });
 
   const httpServer = createServer(app);

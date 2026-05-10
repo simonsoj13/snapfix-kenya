@@ -101,7 +101,6 @@ function Router() {
       <TopNav
         onSearchClick={() => navigate("/search")}
         onProfileClick={() => navigate("/profile")}
-        notificationCount={0}
       />
       <Switch>
         <Route path="/" component={HomePage} />
