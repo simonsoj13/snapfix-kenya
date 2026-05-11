@@ -17,15 +17,15 @@ const supportTickets: Map<string, SupportTicket> = new Map();
 const notifications: Map<string, import("./storage").AppNotification> = new Map();
 const resetCodes: Record<string, string> = {};
 let pricingConfig: Map<string, PricingConfig> = new Map([
-  ["Plumbing",   { category: "Plumbing",   baseMin: 2500, baseMax: 6000,  depositPercent: 0.3  }],
-  ["Electrical", { category: "Electrical", baseMin: 3000, baseMax: 8000,  depositPercent: 0.3  }],
-  ["Welding",    { category: "Welding",    baseMin: 2800, baseMax: 7000,  depositPercent: 0.3  }],
-  ["Carpentry",  { category: "Carpentry",  baseMin: 2000, baseMax: 6500,  depositPercent: 0.3  }],
-  ["HVAC",       { category: "HVAC",       baseMin: 4000, baseMax: 12000, depositPercent: 0.35 }],
-  ["Appliance",  { category: "Appliance",  baseMin: 1500, baseMax: 5000,  depositPercent: 0.3  }],
-  ["Painting",   { category: "Painting",   baseMin: 2500, baseMax: 7000,  depositPercent: 0.3  }],
-  ["Emergency",  { category: "Emergency",  baseMin: 5000, baseMax: 15000, depositPercent: 0.4  }],
-  ["General",    { category: "General",    baseMin: 2000, baseMax: 6000,  depositPercent: 0.3  }],
+  ["Plumbing",   { category: "Plumbing",   baseMin: 1500, baseMax: 8000,  depositPercent: 0.3  }],
+  ["Electrical", { category: "Electrical", baseMin: 2000, baseMax: 10000, depositPercent: 0.3  }],
+  ["Welding",    { category: "Welding",    baseMin: 3000, baseMax: 15000, depositPercent: 0.3  }],
+  ["Carpentry",  { category: "Carpentry",  baseMin: 2500, baseMax: 12000, depositPercent: 0.3  }],
+  ["HVAC",       { category: "HVAC",       baseMin: 5000, baseMax: 25000, depositPercent: 0.35 }],
+  ["Appliance",  { category: "Appliance",  baseMin: 1000, baseMax: 6000,  depositPercent: 0.3  }],
+  ["Painting",   { category: "Painting",   baseMin: 3000, baseMax: 20000, depositPercent: 0.3  }],
+  ["Emergency",  { category: "Emergency",  baseMin: 3500, baseMax: 12000, depositPercent: 0.4  }],
+  ["General",    { category: "General",    baseMin: 1000, baseMax: 5000,  depositPercent: 0.3  }],
 ]);
 
 export class DatabaseStorage implements IStorage {
