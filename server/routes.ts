@@ -23,10 +23,20 @@ async function generateQuoteRange(category: string, area: string, description: s
     compound: 1.15,
   };
   const areaMulti = areaMultipliers[area] ?? 1.0;
-  const complexityBonus = description.length > 100 ? 0.2 : description.length > 50 ? 0.1 : 0;
+  const desc = description.toLowerCase();
+  const high = ['burst','flooding','no power','complete rewire','replace all','collapsed','leaking badly','short circuit','emergency','whole house','broken pipe','replace tank','overhead tank','borehole','3 phase','solar','ceiling down','roof','perimeter'];
+  const med  = ['replace','install new','not working','broken','blocked drain','overflow','new fitting','new socket','new switch','patch','repaint','hang door','new lock','new tap','new pipe','faulty'];
+  const low  = ['small','minor','quick','simple','just','only','dripping','loose','tighten','check','inspect','touch up'];
+  let score = 0;
+  high.forEach(k => { if (desc.includes(k)) score += 3; });
+  med.forEach(k  => { if (desc.includes(k)) score += 1; });
+  low.forEach(k  => { if (desc.includes(k)) score -= 1; });
+  if (desc.length > 150) score += 2; else if (desc.length > 80) score += 1;
+  const cMulti = score >= 5 ? 1.5 : score >= 3 ? 1.3 : score >= 1 ? 1.1 : score < 0 ? 0.8 : 1.0;
+  const cLabel = score >= 5 ? 'High complexity' : score >= 3 ? 'Medium-high' : score < 0 ? 'Simple job' : 'Standard job';
 
-  const minBase = Math.round((config.baseMin * areaMulti) / 100) * 100;
-  const maxBase = Math.round((config.baseMax * areaMulti * (1 + complexityBonus)) / 100) * 100;
+  const minBase = Math.round((config.baseMin * areaMulti * cMulti) / 100) * 100;
+  const maxBase = Math.round((config.baseMax * areaMulti * cMulti) / 100) * 100;
   const midpoint = Math.round(((minBase + maxBase) / 2) / 100) * 100;
   const deposit = Math.round(midpoint * config.depositPercent / 100) * 100;
 
@@ -42,6 +52,8 @@ async function generateQuoteRange(category: string, area: string, description: s
     breakdown: `Labour: KES ${minBase.toLocaleString()}–${maxBase.toLocaleString()} | Materials: KES ${minMaterials.toLocaleString()}–${maxMaterials.toLocaleString()}`,
     category,
     area,
+    complexityLabel: cLabel,
+    note: 'Final price agreed with fundi on arrival. Estimate only.',
   };
 }
 
