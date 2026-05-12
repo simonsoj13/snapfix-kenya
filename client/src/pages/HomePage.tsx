@@ -135,7 +135,7 @@ export default function HomePage() {
       {/* ── Filter pills ── */}
       <div className="px-4 -mt-3 flex gap-2 flex-wrap mb-2">
         {([
-          { key: "female-safe" as Filter, label: "Female-Safe Workers Only", icon: ShieldCheck },
+          { key: "female-safe" as Filter, label: "Verified Female Fundis", icon: ShieldCheck },
           { key: "nearby" as Filter,      label: "Nearby",      icon: LocateFixed },
           { key: "available" as Filter,   label: "Available Now", icon: Clock },
         ] as const).map(({ key, label, icon: Icon }) => {

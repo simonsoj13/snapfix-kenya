@@ -237,7 +237,7 @@ export default function LandingPage() {
               { icon: '🪪', title: 'Verified Fundis', desc: 'Every professional is ID-verified and background-checked. See their real name, photo, and work history before booking.' },
               { icon: '🏷️', title: 'Transparent Pricing', desc: 'Get a fixed quote before any work begins. No hidden charges, no price changes halfway through the job.' },
               { icon: '📱', title: 'M-Pesa Protection', desc: 'Your payment is held securely and only released when you confirm the job is complete to your satisfaction.' },
-              { icon: '🛡️', title: 'Female-Safe Service', desc: 'Verified female-friendly fundis available, and companion-requests allowed for all home visit bookings.' },
+              { icon: '🛡️', title: 'Verified Female Fundis', desc: 'Book from our pool of verified female fundis for a safe and comfortable home service experience.' },
             ].map(w => (
               <div key={w.title} className="sf-fade sf-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '22px 18px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                 <div style={{ width: 44, height: 44, background: '#dcfce7', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{w.icon}</div>
