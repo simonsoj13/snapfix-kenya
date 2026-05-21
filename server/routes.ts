@@ -372,6 +372,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (job.workerId) {
             storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
           }
+
+          // AUTO VERIFICATION - Both admin + fundi accepted
+          const updatedJob = await storage.getJobRequest(job.id);
+          if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
+            await storage.updateJobRequest(tx.jobId, { status: "verified" });
+            storage.createNotification({
+              userId: job.userId,
+              type: "booking_verified",
+              title: "✅ Booking Fully Verified!",
+              message: "Both Admin and Fundi have accepted. Your job is now officially active.",
+              jobId: job.id,
+              isRead: false
+            }).catch(() => {});
+          }
+        }
+      }
+        if (job) {
+          storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
+          if (job.workerId) {
+            storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
+          }
           // === AUTO-VERIFY when Fundi also accepts ===
           const updatedJob = await storage.getJobRequest(job.id);
           if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
@@ -766,4 +787,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(401).json({ error: err.message || "Google login failed" });
     }
   });
+
+
+  // === AUTO-VERIFY: When Admin approves deposit AND Fundi accepts ===
+  // (This is already partially in your approve endpoint - we ensure it's clean)
 
