@@ -130,6 +130,7 @@ export default function RequestsPage() {
   const userId = user?.id ?? "";
 
   const [payBalanceJob, setPayBalanceJob] = useState<ExtJobRequest | null>(null);
+  const [payDepositJob, setPayDepositJob] = useState<ExtJobRequest | null>(null);
   const [ratingJob, setRatingJob] = useState<ExtJobRequest | null>(null);
   const [starRating, setStarRating] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
@@ -538,6 +539,17 @@ export default function RequestsPage() {
                       </Button>
                     )}
 
+                    {/* Pay Deposit — when job is quoted */}
+                    {req.status === "quoted" && req.quotedAmount && (
+                      <Button
+                        size="sm"
+                        className="gap-1.5 bg-primary"
+                        onClick={() => setPayDepositJob(req)}
+                      >
+                        <Banknote className="w-4 h-4" /> Pay Deposit — KES {Math.round(req.quotedAmount * 0.3).toLocaleString()}
+                      </Button>
+                    )}
+
                     {/* Cancel Request — pending/quoted only */}
                     {(req.status === "pending" || req.status === "quoted") && (
                       <Button
@@ -558,6 +570,30 @@ export default function RequestsPage() {
           })}
         </div>
       </div>
+
+      {/* M-Pesa deposit payment dialog */}
+      <StkPushDialog
+        open={!!payDepositJob}
+        amount={Math.round((payDepositJob?.quotedAmount ?? 0) * 0.3)}
+        phone={user?.phone ?? "+254700000000"}
+        onSuccess={async () => {
+          if (!payDepositJob) return;
+          const depositAmt = Math.round((payDepositJob.quotedAmount ?? 0) * 0.3);
+          await fetch('/api/transactions/pending', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user?.id, jobRequestId: payDepositJob.id, amount: depositAmt, type: 'deposit', phone: user?.phone }),
+          });
+          await fetch('/api/job-requests/' + payDepositJob.id + '/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'awaiting-deposit-approval' }),
+          });
+          setPayDepositJob(null);
+          jobRequests.refetch();
+        }}
+        onClose={() => setPayDepositJob(null)}
+      />
 
       {/* M-Pesa balance payment dialog */}
       <StkPushDialog
