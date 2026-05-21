@@ -904,3 +904,78 @@ export default function BookingFlow() {
     </div>
   );
 }
+
+  // === IMPROVED handleConfirmDeposit (replace the old one) ===
+  const handleConfirmDeposit = async () => {
+    if (!selectedWorker || !quote || !user) {
+      toast({ 
+        title: "Missing information", 
+        description: "Please select a fundi and complete previous steps", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setDepositLoading(true);
+    try {
+      const res = await fetch("/api/job-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          workerId: selectedWorker.id,
+          imageUrl: imageUrl || "",
+          description,
+          category: aiCategory,
+          area,
+          status: "awaiting-deposit-approval",
+          location,
+          isNow: isNow ? 1 : 0,
+          preferredDate: isNow ? null : `${scheduledDate} ${scheduledTime}`.trim(),
+          quotedMin: quote.min,
+          quotedMax: quote.max,
+          quotedAmount: quote.midpoint,
+          depositAmount: quote.deposit,
+          workerContactShown: 0,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create booking");
+
+      setJobRequest(data);
+
+      // Create pending transaction
+      await fetch("/api/transactions/pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: data.id,
+          userId: user.id,
+          workerId: selectedWorker.id,
+          customerName: user.name,
+          workerName: selectedWorker.name,
+          amount: quote.deposit,
+          type: "deposit",
+          status: "pending",
+          phone: user.phone || "",
+          mpesaRef: "PENDING-" + Date.now(),
+          category: aiCategory,
+        }),
+      });
+
+      setStep(5);
+      toast({ 
+        title: "Booking Created Successfully!", 
+        description: "Proceed to pay the deposit via M-Pesa" 
+      });
+    } catch (err: any) {
+      toast({ 
+        title: "Booking Failed", 
+        description: err.message || "Please try again", 
+        variant: "destructive" 
+      });
+    } finally {
+      setDepositLoading(false);
+    }
+  };
