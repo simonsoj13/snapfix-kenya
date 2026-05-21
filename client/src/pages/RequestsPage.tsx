@@ -582,7 +582,7 @@ export default function RequestsPage() {
           await fetch('/api/transactions/pending', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.id, jobRequestId: payDepositJob.id, amount: depositAmt, type: 'deposit', phone: user?.phone }),
+            body: JSON.stringify({ userId: user?.id, jobId: payDepositJob.id, amount: depositAmt, type: 'deposit', phone: user?.phone }),
           });
           await fetch('/api/job-requests/' + payDepositJob.id + '/status', {
             method: 'PATCH',
@@ -590,7 +590,7 @@ export default function RequestsPage() {
             body: JSON.stringify({ status: 'awaiting-deposit-approval' }),
           });
           setPayDepositJob(null);
-          jobRequests.refetch();
+          qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
         }}
         onClose={() => setPayDepositJob(null)}
       />
