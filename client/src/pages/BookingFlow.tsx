@@ -979,3 +979,58 @@ export default function BookingFlow() {
       setDepositLoading(false);
     }
   };
+
+  // Improved polling - also detect "verified" status
+  useEffect(() => {
+    if (!jobRequest?.id || paymentDone || step !== 5) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/job-requests/user/' + (user?.id ?? ''));
+        const jobs = await res.json();
+        const job = jobs.find((j: any) => j.id === jobRequest.id);
+
+        if (job) {
+          if (job.status === 'deposit-paid' || job.status === 'verified' || job.status === 'in-progress') {
+            setPaymentDone(true);
+            setStep(6); // or wherever your success screen is
+            toast({ 
+              title: "✅ Booking Verified!", 
+              description: "Both admin and Fundi have confirmed. Your job is now active." 
+            });
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {}
+    }, 4000); // poll every 4 seconds
+
+    return () => clearInterval(interval);
+  }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
+
+  // Enhanced polling - detects when admin + fundi both approved
+  useEffect(() => {
+    if (!jobRequest?.id || paymentDone || step !== 5) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/job-requests/user/' + (user?.id ?? ''));
+        const jobs = await res.json();
+        const job = jobs.find((j: any) => j.id === jobRequest.id);
+
+        if (job) {
+          if (['deposit-paid', 'verified', 'in-progress'].includes(job.status)) {
+            setPaymentDone(true);
+            setStep(6);
+            toast({
+              title: "✅ Booking Verified!",
+              description: "Both Admin and Fundi have accepted. Your job is now active.",
+              variant: "default"
+            });
+            clearInterval(interval);
+          }
+        }
+      } catch (e) { console.error("Polling error", e); }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
