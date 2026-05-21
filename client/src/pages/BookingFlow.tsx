@@ -210,6 +210,24 @@ export default function BookingFlow() {
   // Step 6
   const [showStk, setShowStk] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
+
+  // Auto-detect admin approval by polling job status
+  useEffect(() => {
+    if (!jobRequest?.id || paymentDone) return;
+    if (step !== 5) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/job-requests/user/' + (user?.id ?? ''));
+        const jobs = await res.json();
+        const job = jobs.find((j: any) => j.id === jobRequest.id);
+        if (job && job.status === 'deposit-paid') {
+          setPaymentDone(true);
+          clearInterval(interval);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [jobRequest?.id, paymentDone, step, user?.id]);
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
 
