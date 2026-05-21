@@ -370,6 +370,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (job) {
           storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
           if (job.workerId) storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
+
+          // AUTO-VERIFY when Fundi has accepted the job
+          const updatedJob = await storage.getJobRequest(job.id);
+          if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
+            await storage.updateJobRequest(tx.jobId, { status: "verified" });
+            storage.createNotification({
+              userId: job.userId,
+              type: "booking_verified",
+              title: "✅ Booking Fully Verified!",
+              message: "Both Admin and Fundi have accepted. Your job is now officially active.",
+              jobId: job.id,
+              isRead: false
+            }).catch(() => {});
+          }
+        }
+      }
+        if (job) {
+          storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
+          if (job.workerId) storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
         }
       } else if (tx.type === "balance") {
         const job = await storage.updateJobRequest(tx.jobId, { status: "completed" });
@@ -718,3 +737,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
+
+  // Google Login (placed correctly after admin-login)
+  app.post("/api/auth/google", async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) return res.status(400).json({ error: "Token required" });
+
+      const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
+      const payload = await googleRes.json();
+
+      if (!payload.email) return res.status(401).json({ error: "Invalid Google token" });
+
+      let user = await storage.getUserByEmail(payload.email);
+      if (!user) {
+        user = await storage.createUser({
+          name: payload.name || "Google User",
+          email: payload.email,
+          phone: "",
+          password: "",
+          role: "customer",
+        });
+      }
+      const { password: _, ...safe } = user;
+      res.json(safe);
+    } catch (err: any) {
+      res.status(401).json({ error: err.message || "Google login failed" });
+    }
+  });
