@@ -369,9 +369,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const job = await storage.updateJobRequest(tx.jobId, { status: "deposit-paid", workerContactShown: 1 });
         if (job) {
           storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
-          if (job.workerId) storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
+          if (job.workerId) {
+            storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
+          }
 
-          // AUTO-VERIFY when Fundi has accepted the job
+          // === AUTO-VERIFY when Fundi has accepted ===
           const updatedJob = await storage.getJobRequest(job.id);
           if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
             await storage.updateJobRequest(tx.jobId, { status: "verified" });
@@ -738,7 +740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-  // Google Login (placed correctly after admin-login)
+  // === GOOGLE LOGIN (Correctly placed) ===
   app.post("/api/auth/google", async (req, res) => {
     try {
       const { token } = req.body;
@@ -765,3 +767,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(401).json({ error: err.message || "Google login failed" });
     }
   });
+
