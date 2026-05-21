@@ -1034,3 +1034,60 @@ export default function BookingFlow() {
 
     return () => clearInterval(interval);
   }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
+
+  // === AUTO MOVE FORWARD when booking is verified ===
+  useEffect(() => {
+    if (!jobRequest?.id || paymentDone || step !== 5) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/job-requests/user/${user?.id}`);
+        if (!res.ok) return;
+
+        const jobs = await res.json();
+        const currentJob = jobs.find((j: any) => j.id === jobRequest.id);
+
+        if (currentJob && ['deposit-paid', 'verified', 'in-progress'].includes(currentJob.status)) {
+          setPaymentDone(true);
+          setStep(6);   // Change 6 to your success/completed step if different
+          toast({
+            title: "✅ Booking Verified!",
+            description: "Both Admin and Fundi have accepted. Your job is now active.",
+          });
+          clearInterval(interval);
+        }
+      } catch (e) {
+        console.error("Polling failed", e);
+      }
+    }, 3000); // check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
+
+  // Clean Polling - Auto advance when booking is verified
+  useEffect(() => {
+    if (!jobRequest?.id || paymentDone || step !== 5) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/job-requests/user/${user?.id}`);
+        if (!res.ok) return;
+        const jobs = await res.json();
+        const currentJob = jobs.find((j: any) => j.id === jobRequest.id);
+
+        if (currentJob && ['deposit-paid', 'verified', 'in-progress'].includes(currentJob.status)) {
+          setPaymentDone(true);
+          setStep(6);
+          toast({
+            title: "✅ Booking Verified!",
+            description: "Both Admin and Fundi have accepted. Your job is now officially active.",
+          });
+          clearInterval(interval);
+        }
+      } catch (e) {
+        console.error("Polling error", e);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
