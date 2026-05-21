@@ -372,8 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (job.workerId) {
             storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
           }
-
-          // === AUTO-VERIFY when Fundi has accepted ===
+          // === AUTO-VERIFY when Fundi also accepts ===
           const updatedJob = await storage.getJobRequest(job.id);
           if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
             await storage.updateJobRequest(tx.jobId, { status: "verified" });
@@ -740,7 +739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-  // === GOOGLE LOGIN (Correctly placed) ===
+  // === GOOGLE LOGIN ===
   app.post("/api/auth/google", async (req, res) => {
     try {
       const { token } = req.body;
