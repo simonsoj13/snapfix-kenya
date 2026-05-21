@@ -196,7 +196,7 @@ export default function BookingFlow() {
   const [quotingLoading, setQuotingLoading] = useState(false);
 
   // Step 3
-  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(draft.workerData ? JSON.parse(draft.workerData) : null);
 
   // Step 4
   const [isNow, setIsNow] = useState<boolean>(draft.isNow ?? true);
@@ -205,7 +205,7 @@ export default function BookingFlow() {
   const [depositLoading, setDepositLoading] = useState(false);
 
   // Step 5
-  const [jobRequest, setJobRequest] = useState<JobRequest | null>(null);
+  const [jobRequest, setJobRequest] = useState<JobRequest | null>(draft.jobRequestId ? { id: draft.jobRequestId } as any : null);
 
   // Step 6
   const [showStk, setShowStk] = useState(false);
@@ -224,6 +224,8 @@ export default function BookingFlow() {
         step, area, description, location, aiCategory,
         isNow, scheduledDate, scheduledTime,
         selectedWorkerId: selectedWorker?.id ?? null,
+        jobRequestId: jobRequest?.id ?? null,
+        workerData: selectedWorker ? JSON.stringify(selectedWorker) : null,
         imageUrl,
       }));
     } catch {}
@@ -733,7 +735,7 @@ export default function BookingFlow() {
         )}
 
         {/* ── Step 5: Booking confirmed ── */}
-        {step === 5 && jobRequest && selectedWorker && (
+        {step === 5 && (
           <div className="space-y-6">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
