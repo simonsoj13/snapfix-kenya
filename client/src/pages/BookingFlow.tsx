@@ -658,7 +658,7 @@ export default function BookingFlow() {
               <CardContent className="py-4 flex items-center gap-3">
                 <Avatar className="w-12 h-12">
                   <AvatarImage src={selectedWorker.profileImage || getWorkerImage(selectedWorker.specialty)} />
-                  <AvatarFallback>{selectedWorker.name[0]}</AvatarFallback>
+                  <AvatarFallback>{selectedWorker?.name?.[0] ?? "?"}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <p className="font-semibold">{selectedWorker.name}</p>
@@ -755,17 +755,17 @@ export default function BookingFlow() {
                       <AvatarFallback>{selectedWorker.name[0]}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{selectedWorker.name}</p>
-                      <p className="text-xs text-muted-foreground">{selectedWorker.specialty}</p>
+                      <p className="font-medium">{selectedWorker?.name ?? "Your Fundi"}</p>
+                      <p className="text-xs text-muted-foreground">{selectedWorker?.specialty ?? ""}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md text-sm">
                     <Phone className="w-4 h-4 text-primary" />
-                    <span>{selectedWorker.phone}</span>
+                    <span>{selectedWorker?.phone ?? "Contact via app"}</span>
                   </div>
                   <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md text-sm">
                     <Mail className="w-4 h-4 text-primary" />
-                    <span>{selectedWorker.email}</span>
+                    <span>{selectedWorker?.email ?? ""}</span>
                   </div>
                 </div>
               </CardContent>
