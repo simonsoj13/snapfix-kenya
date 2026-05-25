@@ -114,7 +114,7 @@ export default function BookingFlow() {
           description,
           area,
           location: jobLocation,
-          imageUrl: imageUrl || null,
+          imageUrl: imageUrl || "",
           isNow: isNow ? 1 : 0,
           preferredDate: isNow ? null : scheduledDate,
           preferredTime: isNow ? null : scheduledTime,
@@ -183,7 +183,7 @@ export default function BookingFlow() {
     <div className="max-w-xl mx-auto p-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => step > 0 ? go(step - 1) : navigate("/app")} className="flex items-center gap-1 text-sm text-muted-foreground">
+        <button onClick={() => step > 0 ? go(step - 1) : navigate("/")} className="flex items-center gap-1 text-sm text-muted-foreground">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
         <h1 className="font-bold text-lg">Book a Repair</h1>
