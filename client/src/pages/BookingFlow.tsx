@@ -37,7 +37,7 @@ function WorkerPhotos({ workerId }: { workerId: string }) {
   );
 }
 
-const STEPS = ["Photo", "Describe", "Quote & Fundi", "Schedule", "Pay", "Booked"];
+const STEPS = ["Photo", "Describe", "Quote", "Worker", "Schedule", "Pay", "Complete"];
 const CATEGORIES = ["Plumbing","Electrical","Carpentry","Painting","Welding","HVAC","Appliance","General"];
 const AREAS = ["bathroom","kitchen","sitting-room","bedroom","compound"];
 
@@ -77,15 +77,20 @@ export default function BookingFlow() {
           description: `You were booking ${d.category} repair. Want to continue?`,
           duration: 10000,
           action: (
-            <Button size="sm" onClick={() => {
-              if (d.category) setCategory(d.category);
-              if (d.description) setDescription(d.description);
-              if (d.area) setArea(d.area);
-              if (d.location) setJobLocation(d.location);
-              if (d.isNow !== undefined) setIsNow(d.isNow);
-              if (d.scheduledDate) setScheduledDate(d.scheduledDate);
-              if (d.scheduledTime) setScheduledTime(d.scheduledTime);
-            }}>
+            <Button 
+              size="sm" 
+              onClick={() => {
+                if (d.category) setCategory(d.category);
+                if (d.description) setDescription(d.description);
+                if (d.area) setArea(d.area);
+                if (d.location) setJobLocation(d.location);
+                if (d.isNow !== undefined) setIsNow(d.isNow);
+                if (d.scheduledDate) setScheduledDate(d.scheduledDate);
+                if (d.scheduledTime) setScheduledTime(d.scheduledTime);
+                // Go to Step 1 (Describe) where the draft data shows
+                setStep(1);
+              }}
+            >
               Continue
             </Button>
           ),
@@ -357,11 +362,10 @@ export default function BookingFlow() {
           )}
 
           {/* ── Step 2: Quote + Fundis Combined ── */}
+                    {/* ── Step 2: Quote ── */}
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Your Quote & Available Fundis</h2>
-              
-              {/* Quote Section */}
+              <h2 className="font-semibold text-lg">Your Estimated Quote</h2>
               {quotingLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Calculating quote...</div>
               ) : quote ? (
@@ -381,56 +385,58 @@ export default function BookingFlow() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">Could not load quote. Please try again.</div>
               )}
-
-              {/* Fundis Section - Auto-loaded */}
-              <div className="border-t pt-4">
-                <h3 className="font-medium text-sm text-muted-foreground mb-3">Available Fundis</h3>
-                {loadingWorkers ? (
-                  <div className="text-center py-4 text-muted-foreground text-sm">Finding fundis near you...</div>
-                ) : workers.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground text-sm">No fundis available right now.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {workers.map((w) => (
-                      <div key={w.id} onClick={() => setSelectedWorker(w)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedWorker?.id === w.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
-                        <div className="flex items-start gap-3">
-                          <Avatar className="w-12 h-12">
-                            <AvatarImage src={w.profileImage || getWorkerImage(w.specialty)} />
-                            <AvatarFallback>{w.name?.[0] ?? "F"}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <p className="font-semibold">{w.name}</p>
-                              <Badge variant="secondary" className="gap-1 text-xs">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                {w.rating ?? "4.5"}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{w.specialty}</p>
-                            <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                              {w.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.location}</span>}
-                              {w.experience && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{w.experience} yrs</span>}
-                            </div>
-                            <WorkerPhotos workerId={w.id} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Button className="w-full" disabled={!selectedWorker} onClick={() => go(3)}>
-                Continue with {selectedWorker?.name ?? "Selected Fundi"} <ArrowRight className="w-4 h-4 ml-2" />
+              <Button className="w-full" onClick={() => { fetchWorkers(); go(3); }}>
+                Find a Fundi <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           )}
 
-
+          {/* ── Step 3: Worker ── */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <h2 className="font-semibold text-lg">Choose a Fundi</h2>
+              {loadingWorkers ? (
+                <div className="text-center py-8 text-muted-foreground">Finding fundis near you...</div>
+              ) : workers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No fundis available right now. Try again later.</div>
+              ) : (
+                <div className="space-y-3">
+                  {workers.map((w) => (
+                    <div key={w.id} onClick={() => setSelectedWorker(w)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedWorker?.id === w.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
+                      <div className="flex items-start gap-3">
+                        <Avatar className="w-12 h-12">
+                          <AvatarImage src={w.profileImage || getWorkerImage(w.specialty)} />
+                          <AvatarFallback>{w.name?.[0] ?? "F"}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-semibold">{w.name}</p>
+                            <Badge variant="secondary" className="gap-1 text-xs">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {w.rating ?? "4.5"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{w.specialty}</p>
+                          <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                            {w.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.location}</span>}
+                            {w.experience && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{w.experience} yrs</span>}
+                          </div>
+                          <WorkerPhotos workerId={w.id} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button className="w-full" disabled={!selectedWorker} onClick={() => go(4)}>
+                Book {selectedWorker?.name ?? "Selected Fundi"} <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
 
           {/* ── Step 4: Schedule ── */}
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-4">
               <h2 className="font-semibold text-lg">Schedule & Confirm</h2>
               <div className="flex gap-3">
@@ -470,7 +476,7 @@ export default function BookingFlow() {
           )}
 
           {/* ── Step 5: Pay Deposit ── */}
-          {step === 4 && (
+          {step === 5 && (
             <div className="space-y-5">
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -551,7 +557,7 @@ export default function BookingFlow() {
           )}
 
           {/* ── Step 6: Complete & Review ── */}
-          {step === 5 && (
+          {step === 6 && (
             <div className="space-y-5 text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8 text-primary" />
