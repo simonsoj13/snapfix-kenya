@@ -368,7 +368,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (tx.type === "deposit") {
         const job = await storage.updateJobRequest(tx.jobId, { status: "deposit-paid", workerContactShown: 1 });
         if (job) {
-          storage.createNotification({ userId: job.userId, type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id, isRead: false }).catch(() => {});
+          notifyUser(job.userId, { type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id })
+      broadcastNotification(job.userId, notification);
           if (job.workerId) {
             storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
           }
@@ -377,14 +378,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const updatedJob = await storage.getJobRequest(job.id);
           if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
             await storage.updateJobRequest(tx.jobId, { status: "verified" });
-            storage.createNotification({
-              userId: job.userId,
-              type: "booking_verified",
-              title: "✅ Booking Fully Verified!",
-              message: "Both Admin and Fundi have accepted. Your job is now officially active.",
-              jobId: job.id,
-              isRead: false
-            }).catch(() => {});
+            notifyUser(job.userId, { type: "booking_verified", title: "✅ Booking Fully Verified!", message: "Both Admin and Fundi have accepted. Your job is now officially active.", jobId: job.id })
+      broadcastNotification(job.userId, notification);
           }
         }
       } else if (tx.type === "balance") {
@@ -615,7 +610,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserById(req.params.userId);
       if (user) {
         await storage.createWorkerFromVerification(updated, user);
-        storage.createNotification({ userId: req.params.userId, type: "verification_approved", title: "Verification Approved!", message: "Congratulations! Your Fundi profile has been approved. You can now receive job requests.", jobId: null, isRead: false }).catch(() => {});
+        notifyUser(req.params.userId, { type: "verification_approved", title: "Verification Approved!", message: "Congratulations! Your Fundi profile has been approved. You can now receive job requests.", jobId: null })
+      broadcastNotification(req.params.userId, notification);
       }
     } else if (status === "rejected") {
       const note = reviewNote ? ` Reason: ${reviewNote}` : "";
@@ -729,6 +725,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await storage.markAllNotificationsRead(req.params.userId);
     res.json({ success: true });
   });
+
+  // ── Real-Time Notifications (SSE) ─────────────────────────────────────────
+  const sseClients = new Map<string, Response>();
+
+  app.get("/api/notifications/stream/:userId", (req, res) => {
+    const userId = req.params.userId;
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+    
+    sseClients.set(userId, res);
+    res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+    
+    req.on("close", () => sseClients.delete(userId));
+  });
+
+  const broadcastToUser = (userId: string, data: any) => {
+    const client = sseClients.get(userId);
+    if (client && !client.writableEnded) {
+      client.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  const notifyUser = async (userId: string, payload: any) => {
+    try {
+      const notification = await storage.createNotification({ ...payload, userId, isRead: false });
+      broadcastToUser(userId, { type: "notification", data: notification });
+      return notification;
+    } catch (e) {
+      // Silently fail
+    }
+  };
 
   const httpServer = createServer(app);
 

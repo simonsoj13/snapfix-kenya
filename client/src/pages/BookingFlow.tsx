@@ -37,7 +37,7 @@ function WorkerPhotos({ workerId }: { workerId: string }) {
   );
 }
 
-const STEPS = ["Photo", "Describe", "Quote", "Worker", "Schedule", "Booked"];
+const STEPS = ["Photo", "Describe", "Quote & Fundi", "Schedule", "Pay", "Booked"];
 const CATEGORIES = ["Plumbing","Electrical","Carpentry","Painting","Welding","HVAC","Appliance","General"];
 const AREAS = ["bathroom","kitchen","sitting-room","bedroom","compound"];
 
@@ -65,6 +65,76 @@ export default function BookingFlow() {
   const [paymentDone, setPaymentDone] = useState(false);
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
+  // Resume draft notification
+  useEffect(() => {
+    const saved = localStorage.getItem("bookingDraft");
+    if (!saved) return;
+    try {
+      const d = JSON.parse(saved);
+      if (d.category && d.description) {
+        toast({
+          title: "📋 Unfinished Booking",
+          description: `You were booking ${d.category} repair. Want to continue?`,
+          duration: 10000,
+          action: (
+            <Button size="sm" onClick={() => {
+              if (d.category) setCategory(d.category);
+              if (d.description) setDescription(d.description);
+              if (d.area) setArea(d.area);
+              if (d.location) setJobLocation(d.location);
+              if (d.isNow !== undefined) setIsNow(d.isNow);
+              if (d.scheduledDate) setScheduledDate(d.scheduledDate);
+              if (d.scheduledTime) setScheduledTime(d.scheduledTime);
+            }}>
+              Continue
+            </Button>
+          ),
+        });
+      }
+    } catch {}
+  }, []);
+  // Auto-detect location using browser geolocation
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "Geolocation not supported", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Detecting location..." });
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+          const data = await res.json();
+          const address = data.display_name || data.name || "Unknown location";
+          // Extract neighborhood/city from address
+          const parts = address.split(',');
+          const shortAddress = parts.slice(0, 2).join(', ');
+          setJobLocation(shortAddress);
+          toast({ title: "📍 Location detected!", description: shortAddress });
+        } catch {
+          toast({ title: "Could not detect location", variant: "destructive" });
+        }
+      },
+      () => {
+        toast({ title: "Location permission denied", variant: "destructive" });
+      }
+    );
+  };
+
+  // Fetch workers
+  const fetchWorkers = useCallback(async () => {
+    setLoadingWorkers(true);
+    try {
+      const res = await fetch(`/api/workers/search?specialty=${encodeURIComponent(category)}&verified=true`);
+      const data = await res.json();
+      setWorkers(Array.isArray(data) ? data : []);
+    } catch {
+      toast({ title: "Failed to load fundis", variant: "destructive" });
+    } finally {
+      setLoadingWorkers(false);
+    }
+  }, [category, toast]);
 
   // Fetch quote
   const fetchQuote = useCallback(async () => {
@@ -85,19 +155,11 @@ export default function BookingFlow() {
     }
   }, [category, area, description, toast]);
 
-  // Fetch workers
-  const fetchWorkers = useCallback(async () => {
-    setLoadingWorkers(true);
-    try {
-      const res = await fetch(`/api/workers/search?specialty=${encodeURIComponent(category)}&verified=true`);
-      const data = await res.json();
-      setWorkers(Array.isArray(data) ? data : []);
-    } catch {
-      toast({ title: "Failed to load fundis", variant: "destructive" });
-    } finally {
-      setLoadingWorkers(false);
-    }
-  }, [category, toast]);
+  // Auto-fetch workers when quote is ready
+  useEffect(() => {
+    if (quote) fetchWorkers();
+  }, [quote, fetchWorkers]);
+
 
   // Create booking
   const createBooking = useCallback(async () => {
@@ -152,6 +214,26 @@ export default function BookingFlow() {
     }, 5000);
     return () => clearInterval(interval);
   }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
+
+  // Real-time notifications via SSE
+  useEffect(() => {
+    if (!user?.id) return;
+    const evtSource = new EventSource(`/api/notifications/stream/${user.id}`);
+    
+    evtSource.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "notification") {
+        toast({
+          title: msg.data.title,
+          description: msg.data.message,
+          duration: 6000,
+        });
+      }
+    };
+    
+    return () => evtSource.close();
+  }, [user?.id, toast]);
+
 
   // Submit review
   const submitReview = async () => {
@@ -215,9 +297,14 @@ export default function BookingFlow() {
                 onPhotosChange={(urls) => setImageUrl(urls[0] ?? "")}
                 maxPhotos={1}
               />
-              <Button className="w-full" onClick={() => go(1)}>
-                Next <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => go(1)}>
+                  Skip Photo →
+                </Button>
+                <Button className="flex-1" onClick={() => go(1)}>
+                  Next <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
             </div>
           )}
 
@@ -254,8 +341,13 @@ export default function BookingFlow() {
               </div>
               <div>
                 <Label>Your Location</Label>
-                <Input value={jobLocation} onChange={(e) => setJobLocation(e.target.value)}
-                  placeholder="e.g. Westlands, Nairobi" className="mt-1" />
+                <div className="flex gap-2 mt-1">
+                  <Input value={jobLocation} onChange={(e) => setJobLocation(e.target.value)}
+                    placeholder="e.g. Westlands, Nairobi" className="flex-1" />
+                  <Button type="button" variant="outline" size="icon" onClick={detectLocation} title="Use my location">
+                    📍
+                  </Button>
+                </div>
               </div>
               <Button className="w-full" disabled={!category || !description || !area || !jobLocation}
                 onClick={() => { fetchQuote(); go(2); }}>
@@ -264,10 +356,12 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {/* ── Step 2: Quote ── */}
+          {/* ── Step 2: Quote + Fundis Combined ── */}
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Your Estimated Quote</h2>
+              <h2 className="font-semibold text-lg">Your Quote & Available Fundis</h2>
+              
+              {/* Quote Section */}
               {quotingLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Calculating quote...</div>
               ) : quote ? (
@@ -287,58 +381,56 @@ export default function BookingFlow() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">Could not load quote. Please try again.</div>
               )}
-              <Button className="w-full" onClick={() => { fetchWorkers(); go(3); }}>
-                Find a Fundi <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          )}
 
-          {/* ── Step 3: Worker ── */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Choose a Fundi</h2>
-              {loadingWorkers ? (
-                <div className="text-center py-8 text-muted-foreground">Finding fundis near you...</div>
-              ) : workers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No fundis available right now. Try again later.</div>
-              ) : (
-                <div className="space-y-3">
-                  {workers.map((w) => (
-                    <div key={w.id} onClick={() => setSelectedWorker(w)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedWorker?.id === w.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
-                      <div className="flex items-start gap-3">
-                        <Avatar className="w-12 h-12">
-                          <AvatarImage src={w.profileImage || getWorkerImage(w.specialty)} />
-                          <AvatarFallback>{w.name?.[0] ?? "F"}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold">{w.name}</p>
-                            <Badge variant="secondary" className="gap-1 text-xs">
-                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                              {w.rating ?? "4.5"}
-                            </Badge>
+              {/* Fundis Section - Auto-loaded */}
+              <div className="border-t pt-4">
+                <h3 className="font-medium text-sm text-muted-foreground mb-3">Available Fundis</h3>
+                {loadingWorkers ? (
+                  <div className="text-center py-4 text-muted-foreground text-sm">Finding fundis near you...</div>
+                ) : workers.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground text-sm">No fundis available right now.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {workers.map((w) => (
+                      <div key={w.id} onClick={() => setSelectedWorker(w)}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedWorker?.id === w.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
+                        <div className="flex items-start gap-3">
+                          <Avatar className="w-12 h-12">
+                            <AvatarImage src={w.profileImage || getWorkerImage(w.specialty)} />
+                            <AvatarFallback>{w.name?.[0] ?? "F"}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="font-semibold">{w.name}</p>
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                {w.rating ?? "4.5"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{w.specialty}</p>
+                            <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                              {w.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.location}</span>}
+                              {w.experience && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{w.experience} yrs</span>}
+                            </div>
+                            <WorkerPhotos workerId={w.id} />
                           </div>
-                          <p className="text-xs text-muted-foreground">{w.specialty}</p>
-                          <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                            {w.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.location}</span>}
-                            {w.experience && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{w.experience} yrs</span>}
-                          </div>
-                          <WorkerPhotos workerId={w.id} />
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button className="w-full" disabled={!selectedWorker} onClick={() => go(4)}>
-                Book {selectedWorker?.name ?? "Selected Fundi"} <ArrowRight className="w-4 h-4 ml-2" />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Button className="w-full" disabled={!selectedWorker} onClick={() => go(3)}>
+                Continue with {selectedWorker?.name ?? "Selected Fundi"} <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           )}
 
+
+
           {/* ── Step 4: Schedule ── */}
-          {step === 4 && (
+          {step === 3 && (
             <div className="space-y-4">
               <h2 className="font-semibold text-lg">Schedule & Confirm</h2>
               <div className="flex gap-3">
@@ -371,14 +463,14 @@ export default function BookingFlow() {
               </div>
 
               <Button className="w-full" disabled={depositLoading || (!isNow && (!scheduledDate || !scheduledTime))}
-                onClick={createBooking}>
+                onClick={() => { createBooking(); }}>
                 {depositLoading ? "Creating booking..." : "Confirm Booking"}
               </Button>
             </div>
           )}
 
           {/* ── Step 5: Pay Deposit ── */}
-          {step === 5 && (
+          {step === 4 && (
             <div className="space-y-5">
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -459,7 +551,7 @@ export default function BookingFlow() {
           )}
 
           {/* ── Step 6: Complete & Review ── */}
-          {step === 6 && (
+          {step === 5 && (
             <div className="space-y-5 text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8 text-primary" />
