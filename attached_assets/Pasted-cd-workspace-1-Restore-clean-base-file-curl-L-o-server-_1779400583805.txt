@@ -1,0 +1,81 @@
+cd ~/workspace
+
+# 1. Restore clean base file
+curl -L -o server/routes.ts https://raw.githubusercontent.com/simonsoj13/snapfix-kenya/main/server/routes.ts
+
+# 2. Add the clean approve route with auto-verification
+cat >> server/routes.ts << 'CLEAN_APPROVE'
+
+  // === CLEAN APPROVE ROUTE WITH AUTO-VERIFICATION ===
+  app.post("/api/admin/transactions/:id/approve", async (req, res) => {
+    try {
+      const tx = await storage.getTransactionById(req.params.id);
+      if (!tx) return res.status(404).json({ error: "Transaction not found" });
+
+      const updated = await storage.updateTransactionStatus(req.params.id, "completed");
+
+      if (tx.jobId) {
+        if (tx.type === "deposit") {
+          const job = await storage.updateJobRequest(tx.jobId, { 
+            status: "deposit-paid", 
+            workerContactShown: 1 
+          });
+
+          if (job) {
+            // Notify customer
+            storage.createNotification({ 
+              userId: job.userId, 
+              type: "deposit_approved", 
+              title: "Deposit Confirmed", 
+              message: "Your deposit has been approved. Your Fundi's contact details are now visible.", 
+              jobId: job.id, 
+              isRead: false 
+            }).catch(() => {});
+
+            // Notify fundi
+            if (job.workerId) {
+              storage.createNotification({ 
+                userId: job.workerId, 
+                type: "deposit_approved", 
+                title: "Job Deposit Paid", 
+                message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, 
+                jobId: job.id, 
+                isRead: false 
+              }).catch(() => {});
+            }
+
+            // AUTO-VERIFY if Fundi has accepted
+            const updatedJob = await storage.getJobRequest(job.id);
+            if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
+              await storage.updateJobRequest(tx.jobId, { status: "verified" });
+              storage.createNotification({
+                userId: job.userId,
+                type: "booking_verified",
+                title: "✅ Booking Fully Verified!",
+                message: "Both Admin and Fundi have accepted. Your job is now officially active.",
+                jobId: job.id,
+                isRead: false
+              }).catch(() => {});
+            }
+          }
+        } else if (tx.type === "balance") {
+          const job = await storage.updateJobRequest(tx.jobId, { status: "completed" });
+          if (job) {
+            storage.createNotification({ 
+              userId: job.userId, 
+              type: "job_completed", 
+              title: "Job Completed", 
+              message: `Your ${job.category} job is now complete. Thank you for using Snap-Fix!`, 
+              jobId: job.id, 
+              isRead: false 
+            }).catch(() => {});
+          }
+        }
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Approval failed" });
+    }
+  });
+CLEAN_APPROVE

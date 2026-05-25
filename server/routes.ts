@@ -397,7 +397,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     res.json(updated);
   });
-  });
 
   app.get("/api/transactions/job/:jobId", async (req, res) => {
     const txs = await storage.getTransactionsByJob(req.params.jobId);
@@ -736,36 +735,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-  // === GOOGLE LOGIN ===
-  app.post("/api/auth/google", async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token) return res.status(400).json({ error: "Token required" });
-
-      const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-      const payload = await googleRes.json();
-
-      if (!payload.email) return res.status(401).json({ error: "Invalid Google token" });
-
-      let user = await storage.getUserByEmail(payload.email);
-      if (!user) {
-        user = await storage.createUser({
-          name: payload.name || "Google User",
-          email: payload.email,
-          phone: "",
-          password: "",
-          role: "customer",
-        });
-      }
-      const { password: _, ...safe } = user;
-      res.json(safe);
-    } catch (err: any) {
-      res.status(401).json({ error: err.message || "Google login failed" });
-    }
-  });
-
-
-  // === AUTO-VERIFICATION: When Admin approves deposit AND Fundi accepts ===
-  // This logic is added inside the approve transaction handler below
-
-  // === CLEAN AUTO-VERIFICATION (inside approve handler) ===
