@@ -6,40 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
-import PhotoUploadCard from "@/components/PhotoUploadCard";
-import { getWorkerImage } from "@/lib/workerImages";
-import type { Worker, JobRequest } from "@shared/schema";
+import type { PricingConfig } from "@shared/schema";
 import {
-  ArrowLeft, ArrowRight, Camera, MapPin, Clock, Star,
-  CheckCircle2, Zap, Calendar, Phone, Mail,
-  Smartphone, Banknote,
+  ArrowLeft, ArrowRight, MapPin, CheckCircle2, Zap, Calendar,
+  Banknote, Info, Store, Camera, Upload,
 } from "lucide-react";
 
-function WorkerPhotos({ workerId }: { workerId: string }) {
-  const { data } = useQuery<{ workSamples: string[]; workerName: string }>({
-    queryKey: ["/api/workers", workerId, "work-samples"],
-    queryFn: () => fetch(`/api/workers/${workerId}/work-samples`).then((r) => r.json()),
-  });
-  if (!data?.workSamples?.length) return null;
-  return (
-    <div className="space-y-2 mt-2">
-      <p className="text-xs text-muted-foreground font-medium">Work Samples</p>
-      <div className="grid grid-cols-3 gap-1">
-        {data.workSamples.map((url, i) => (
-          <img key={i} src={url} alt="work sample" className="rounded object-cover aspect-square w-full" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const STEPS = ["Photo", "Describe", "Quote", "Worker", "Schedule", "Pay", "Complete"];
-const CATEGORIES = ["Plumbing","Electrical","Carpentry","Painting","Welding","HVAC","Appliance","General"];
-const AREAS = ["bathroom","kitchen","sitting-room","bedroom","compound"];
+const STEPS = ["Photo", "Describe", "Your Price", "Schedule", "Posted!"];
+const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Painting", "Welding", "HVAC", "Appliance", "General"];
+const AREAS = ["bathroom", "kitchen", "sitting-room", "bedroom", "compound", "outdoor"];
 
 export default function BookingFlow() {
   const { user } = useAuth();
@@ -48,6 +26,8 @@ export default function BookingFlow() {
 
   const [step, setStep] = useState(0);
   const [imageUrl, setImageUrl] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [aiCategory, setAiCategory] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState("");
@@ -55,17 +35,23 @@ export default function BookingFlow() {
   const [isNow, setIsNow] = useState(true);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [quote, setQuote] = useState<{ min: number; max: number; midpoint: number; deposit: number; depositPercent: number; breakdown: string; complexityLabel?: string; note?: string } | null>(null);
-  const [quotingLoading, setQuotingLoading] = useState(false);
-  const [workers, setWorkers] = useState<Worker[]>([]);
-  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
-  const [loadingWorkers, setLoadingWorkers] = useState(false);
-  const [jobRequest, setJobRequest] = useState<JobRequest | null>(null);
-  const [depositLoading, setDepositLoading] = useState(false);
-  const [paymentDone, setPaymentDone] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [reviewText, setReviewText] = useState("");
-  // Resume draft notification
+  const [offeredPrice, setOfferedPrice] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+  const [postedJobId, setPostedJobId] = useState<string | null>(null);
+
+  const { data: pricingConfigs = [] } = useQuery<PricingConfig[]>({
+    queryKey: ["/api/pricing"],
+  });
+
+  const activePricing = pricingConfigs.find((p) => p.category === category)
+    ?? pricingConfigs.find((p) => p.category === "General");
+
+  const minPrice = activePricing?.baseMin ?? 500;
+  const depositAmount = offeredPrice
+    ? Math.round(Number(offeredPrice) * 0.3 / 100) * 100
+    : 0;
+
+  // Restore draft
   useEffect(() => {
     const saved = localStorage.getItem("bookingDraft");
     if (!saved) return;
@@ -73,32 +59,35 @@ export default function BookingFlow() {
       const d = JSON.parse(saved);
       if (d.category && d.description) {
         toast({
-          title: "📋 Unfinished Booking",
-          description: `You were booking ${d.category} repair. Want to continue?`,
+          title: "Unfinished Booking",
+          description: `You were booking ${d.category} repair. Resume from where you left off?`,
           duration: 10000,
           action: (
-            <Button 
-              size="sm" 
-              onClick={() => {
-                if (d.category) setCategory(d.category);
-                if (d.description) setDescription(d.description);
-                if (d.area) setArea(d.area);
-                if (d.location) setJobLocation(d.location);
-                if (d.isNow !== undefined) setIsNow(d.isNow);
-                if (d.scheduledDate) setScheduledDate(d.scheduledDate);
-                if (d.scheduledTime) setScheduledTime(d.scheduledTime);
-                // Go to Step 1 (Describe) where the draft data shows
-                setStep(1);
-              }}
-            >
-              Continue
-            </Button>
+            <Button size="sm" onClick={() => {
+              if (d.category) setCategory(d.category);
+              if (d.description) setDescription(d.description);
+              if (d.area) setArea(d.area);
+              if (d.location) setJobLocation(d.location);
+              if (d.offeredPrice) setOfferedPrice(String(d.offeredPrice));
+              if (d.isNow !== undefined) setIsNow(d.isNow);
+              if (d.scheduledDate) setScheduledDate(d.scheduledDate);
+              if (d.scheduledTime) setScheduledTime(d.scheduledTime);
+              setStep(1);
+            }}>Continue</Button>
           ),
         });
       }
     } catch {}
   }, []);
-  // Auto-detect location using browser geolocation
+
+  // Save draft on each relevant change
+  useEffect(() => {
+    if (!category && !description) return;
+    const draft = { category, description, area, location: jobLocation, offeredPrice, isNow, scheduledDate, scheduledTime };
+    localStorage.setItem("bookingDraft", JSON.stringify(draft));
+  }, [category, description, area, jobLocation, offeredPrice, isNow, scheduledDate, scheduledTime]);
+
+  // Auto-detect location
   const detectLocation = () => {
     if (!navigator.geolocation) {
       toast({ title: "Geolocation not supported", variant: "destructive" });
@@ -111,72 +100,34 @@ export default function BookingFlow() {
           const { latitude, longitude } = pos.coords;
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
           const data = await res.json();
-          const address = data.display_name || data.name || "Unknown location";
-          // Extract neighborhood/city from address
-          const parts = address.split(',');
-          const shortAddress = parts.slice(0, 2).join(', ');
-          setJobLocation(shortAddress);
-          toast({ title: "📍 Location detected!", description: shortAddress });
+          const parts = (data.display_name || data.name || "").split(",");
+          setJobLocation(parts.slice(0, 2).join(", "));
+          toast({ title: "Location detected!" });
         } catch {
           toast({ title: "Could not detect location", variant: "destructive" });
         }
       },
-      () => {
-        toast({ title: "Location permission denied", variant: "destructive" });
-      }
+      () => toast({ title: "Location permission denied", variant: "destructive" })
     );
   };
 
-  // Fetch workers
-  const fetchWorkers = useCallback(async () => {
-    setLoadingWorkers(true);
-    try {
-      const res = await fetch(`/api/workers/search?specialty=${encodeURIComponent(category)}&verified=true`);
-      const data = await res.json();
-      setWorkers(Array.isArray(data) ? data : []);
-    } catch {
-      toast({ title: "Failed to load fundis", variant: "destructive" });
-    } finally {
-      setLoadingWorkers(false);
+  // Submit job posting
+  const postJob = useCallback(async () => {
+    if (!user) return;
+    const price = Number(offeredPrice);
+    if (price < minPrice) {
+      toast({ title: `Minimum price is KES ${minPrice.toLocaleString()}`, variant: "destructive" });
+      return;
     }
-  }, [category, toast]);
-
-  // Fetch quote
-  const fetchQuote = useCallback(async () => {
-    if (!category || !area || !description) return;
-    setQuotingLoading(true);
+    setSubmitting(true);
     try {
-      const res = await fetch("/api/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, area, description }),
-      });
-      const data = await res.json();
-      setQuote(data);
-    } catch {
-      toast({ title: "Quote failed", variant: "destructive" });
-    } finally {
-      setQuotingLoading(false);
-    }
-  }, [category, area, description, toast]);
-
-  // Auto-fetch workers when quote is ready
-  useEffect(() => {
-    if (quote) fetchWorkers();
-  }, [quote, fetchWorkers]);
-
-
-  // Create booking
-  const createBooking = useCallback(async () => {
-    if (!selectedWorker || !user) return;
-    setDepositLoading(true);
-    try {
+      const deposit = Math.round(price * 0.3 / 100) * 100;
       const res = await fetch("/api/job-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          workerId: selectedWorker.id,
+          workerId: null,
           category,
           description,
           area,
@@ -185,84 +136,23 @@ export default function BookingFlow() {
           isNow: isNow ? 1 : 0,
           preferredDate: isNow ? null : scheduledDate,
           preferredTime: isNow ? null : scheduledTime,
-          quotedAmount: quote?.midpoint ?? null,
-          depositAmount: quote?.deposit ?? null,
-          status: "pending",
+          budget: price,
+          quotedAmount: price,
+          depositAmount: deposit,
+          status: "open",
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Booking failed");
-      setJobRequest(data);
-      setStep(5);
-      toast({ title: "Booking created!", description: "Proceed to pay deposit." });
+      if (!res.ok) throw new Error(data.error || "Failed to post job");
+      setPostedJobId(data.id);
+      localStorage.removeItem("bookingDraft");
+      setStep(4);
     } catch (e: any) {
-      toast({ title: "Booking failed", description: e.message, variant: "destructive" });
+      toast({ title: "Failed to post job", description: e.message, variant: "destructive" });
     } finally {
-      setDepositLoading(false);
+      setSubmitting(false);
     }
-  }, [selectedWorker, user, category, description, area, jobLocation, imageUrl, isNow, scheduledDate, scheduledTime, quote, toast]);
-
-  // Poll for approval at step 5
-  useEffect(() => {
-    if (!jobRequest?.id || paymentDone || step !== 5) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/job-requests/user/${user?.id}`);
-        const jobs = await res.json();
-        const job = jobs.find((j: any) => j.id === jobRequest.id);
-        if (job && ["deposit-paid", "in-progress"].includes(job.status)) {
-          setPaymentDone(true);
-          clearInterval(interval);
-          toast({ title: "✅ Deposit confirmed!", description: "Your fundi has been notified." });
-        }
-      } catch {}
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [jobRequest?.id, paymentDone, step, user?.id, toast]);
-
-  // Real-time notifications via SSE
-  useEffect(() => {
-    if (!user?.id) return;
-    const evtSource = new EventSource(`/api/notifications/stream/${user.id}`);
-    
-    evtSource.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.type === "notification") {
-        toast({
-          title: msg.data.title,
-          description: msg.data.message,
-          duration: 6000,
-        });
-      }
-    };
-    
-    return () => evtSource.close();
-  }, [user?.id, toast]);
-
-
-  // Submit review
-  const submitReview = async () => {
-    if (!jobRequest || !selectedWorker) return;
-    try {
-      await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: jobRequest.id,
-          workerId: selectedWorker.id,
-          userId: user?.id,
-          rating,
-          comment: reviewText,
-          customerName: user?.name ?? "Customer",
-          jobCategory: category,
-        }),
-      });
-      toast({ title: "Review submitted!", description: "Thank you for your feedback." });
-      navigate("/requests");
-    } catch {
-      toast({ title: "Failed to submit review", variant: "destructive" });
-    }
-  };
+  }, [user, offeredPrice, minPrice, category, description, area, jobLocation, imageUrl, isNow, scheduledDate, scheduledTime, toast]);
 
   const go = (n: number) => setStep(n);
 
@@ -270,10 +160,14 @@ export default function BookingFlow() {
     <div className="max-w-xl mx-auto p-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => step > 0 ? go(step - 1) : navigate("/")} className="flex items-center gap-1 text-sm text-muted-foreground">
+        <button
+          onClick={() => step > 0 ? go(step - 1) : navigate("/")}
+          className="flex items-center gap-1 text-sm text-muted-foreground"
+          data-testid="button-back"
+        >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
-        <h1 className="font-bold text-lg">Book a Repair</h1>
+        <h1 className="font-bold text-lg">Post a Repair Job</h1>
         <Badge variant="outline">{step + 1}/{STEPS.length}</Badge>
       </div>
 
@@ -281,7 +175,7 @@ export default function BookingFlow() {
       <div className="flex items-center gap-1 mb-6 overflow-x-auto">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-1 flex-shrink-0">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i < step ? "bg-primary text-white" : i === step ? "bg-primary text-white ring-2 ring-primary/30" : "bg-muted text-muted-foreground"}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i < step ? "bg-primary text-primary-foreground" : i === step ? "bg-primary text-primary-foreground ring-2 ring-primary/30" : "bg-muted text-muted-foreground"}`}>
               {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
             </div>
             {i < STEPS.length - 1 && <div className={`h-0.5 w-4 ${i < step ? "bg-primary" : "bg-muted"}`} />}
@@ -295,18 +189,86 @@ export default function BookingFlow() {
           {/* ── Step 0: Photo ── */}
           {step === 0 && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Upload a Photo</h2>
-              <p className="text-sm text-muted-foreground">Take or upload a photo of what needs to be fixed.</p>
-              <PhotoUploadCard
-                photos={imageUrl ? [imageUrl] : []}
-                onPhotosChange={(urls) => setImageUrl(urls[0] ?? "")}
-                maxPhotos={1}
-              />
+              <div>
+                <h2 className="font-semibold text-lg">Add a Photo</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Help Fundis see exactly what needs fixing. Our AI can detect the repair category automatically.
+                </p>
+              </div>
+
+              {/* Photo upload area */}
+              <label className="relative flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed rounded-xl cursor-pointer hover-elevate min-h-36">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  data-testid="input-photo-upload"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setPhotoUploading(true);
+                    try {
+                      const reader = new FileReader();
+                      const dataUrl = await new Promise<string>((res, rej) => {
+                        reader.onload = () => res(reader.result as string);
+                        reader.onerror = rej;
+                        reader.readAsDataURL(file);
+                      });
+                      setImageUrl(dataUrl);
+                      // AI category detection
+                      const fd = new FormData();
+                      fd.append("image", file, file.name);
+                      const r = await fetch("/api/analyze-image", { method: "POST", body: fd });
+                      const d = await r.json();
+                      if (d.category) {
+                        setAiCategory(d.category);
+                        setCategory(d.category);
+                        toast({ title: `AI detected: ${d.category}`, description: "You can change this on the next step." });
+                      }
+                    } catch {
+                      toast({ title: "Photo uploaded — AI detection skipped", description: "You can select the category manually." });
+                    } finally {
+                      setPhotoUploading(false);
+                    }
+                  }}
+                />
+                {imageUrl ? (
+                  <>
+                    <img src={imageUrl} alt="Uploaded" className="absolute inset-0 w-full h-full object-cover rounded-xl opacity-40" />
+                    <div className="relative z-10 flex flex-col items-center gap-1">
+                      <CheckCircle2 className="w-8 h-8 text-primary" />
+                      <span className="text-sm font-medium">Photo added — tap to change</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {photoUploading ? (
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera className="w-10 h-10 text-muted-foreground" />
+                    )}
+                    <div className="text-center">
+                      <p className="font-medium text-sm">{photoUploading ? "Analysing photo..." : "Take or upload a photo"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">AI will detect repair category automatically</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Camera className="w-3.5 h-3.5" /> Camera &nbsp;·&nbsp; <Upload className="w-3.5 h-3.5" /> Gallery
+                    </div>
+                  </>
+                )}
+              </label>
+
+              {aiCategory && (
+                <div className="flex items-center gap-2 text-sm text-primary bg-primary/5 rounded-md px-3 py-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  AI detected: <strong>{aiCategory}</strong>
+                </div>
+              )}
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => go(1)}>
-                  Skip Photo →
+                <Button variant="outline" className="flex-1" onClick={() => go(1)} data-testid="button-skip-photo">
+                  Skip Photo
                 </Button>
-                <Button className="flex-1" onClick={() => go(1)}>
+                <Button className="flex-1" onClick={() => go(1)} disabled={photoUploading} data-testid="button-next-photo">
                   Next <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
@@ -317,145 +279,192 @@ export default function BookingFlow() {
           {step === 1 && (
             <div className="space-y-4">
               <h2 className="font-semibold text-lg">Describe the Problem</h2>
+
               <div>
                 <Label>Category</Label>
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   {CATEGORIES.map((c) => (
-                    <button key={c} onClick={() => setCategory(c)}
-                      className={`p-2 rounded-md border text-sm font-medium transition-all ${category === c ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+                    <button
+                      key={c}
+                      onClick={() => setCategory(c)}
+                      className={`p-2 rounded-md border text-sm font-medium transition-all ${category === c ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                      data-testid={`button-category-${c.toLowerCase()}`}
+                    >
                       {c}
                     </button>
                   ))}
                 </div>
               </div>
+
               <div>
                 <Label>Description</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what needs fixing..." rows={3} className="mt-1" />
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe what needs fixing in detail..."
+                  rows={3}
+                  className="mt-1"
+                  data-testid="textarea-description"
+                />
               </div>
+
               <div>
                 <Label>Area / Room</Label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
                   {AREAS.map((a) => (
-                    <button key={a} onClick={() => setArea(a)}
-                      className={`p-2 rounded-md border text-xs font-medium capitalize transition-all ${area === a ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+                    <button
+                      key={a}
+                      onClick={() => setArea(a)}
+                      className={`p-2 rounded-md border text-xs font-medium capitalize transition-all ${area === a ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                      data-testid={`button-area-${a}`}
+                    >
                       {a.replace("-", " ")}
                     </button>
                   ))}
                 </div>
               </div>
+
               <div>
                 <Label>Your Location</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input value={jobLocation} onChange={(e) => setJobLocation(e.target.value)}
-                    placeholder="e.g. Westlands, Nairobi" className="flex-1" />
+                  <Input
+                    value={jobLocation}
+                    onChange={(e) => setJobLocation(e.target.value)}
+                    placeholder="e.g. Westlands, Nairobi"
+                    className="flex-1"
+                    data-testid="input-location"
+                  />
                   <Button type="button" variant="outline" size="icon" onClick={detectLocation} title="Use my location">
-                    📍
+                    <MapPin className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-              <Button className="w-full" disabled={!category || !description || !area || !jobLocation}
-                onClick={() => { fetchQuote(); go(2); }}>
-                Get Quote <ArrowRight className="w-4 h-4 ml-2" />
+
+              <Button
+                className="w-full"
+                disabled={!category || !description || !area || !jobLocation}
+                onClick={() => go(2)}
+                data-testid="button-next-describe"
+              >
+                Set My Price <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           )}
 
-          {/* ── Step 2: Quote + Fundis Combined ── */}
-                    {/* ── Step 2: Quote ── */}
+          {/* ── Step 2: Set Your Price ── */}
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Your Estimated Quote</h2>
-              {quotingLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Calculating quote...</div>
-              ) : quote ? (
-                <div className="space-y-3">
-                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 text-center space-y-2">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Estimated Range</p>
-                    <p className="text-3xl font-bold">KES {quote.min.toLocaleString()} – {quote.max.toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{quote.breakdown}</p>
-                    {quote.complexityLabel && <Badge variant="secondary">{quote.complexityLabel}</Badge>}
-                  </div>
-                  <div className="flex justify-between text-sm p-3 bg-muted/50 rounded-lg">
-                    <span className="text-muted-foreground">Deposit required</span>
-                    <span className="font-bold text-primary">KES {quote.deposit.toLocaleString()}</span>
-                  </div>
-                  {quote.note && <p className="text-xs text-muted-foreground text-center">{quote.note}</p>}
+              <div>
+                <h2 className="font-semibold text-lg">Set Your Offered Price</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Fundis will see your budget and choose whether to claim your job.
+                </p>
+              </div>
+
+              {activePricing && (
+                <div className="flex items-start gap-2 bg-muted/50 rounded-md px-3 py-3 text-sm">
+                  <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <span className="text-muted-foreground">
+                    Minimum for <strong>{category}</strong>: <strong className="text-foreground">KES {activePricing.baseMin.toLocaleString()}</strong>.
+                    Offering more increases your chances of getting a Fundi quickly.
+                  </span>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">Could not load quote. Please try again.</div>
               )}
-              <Button className="w-full" onClick={() => { fetchWorkers(); go(3); }}>
-                Find a Fundi <ArrowRight className="w-4 h-4 ml-2" />
+
+              <div>
+                <Label>Your Offered Price (KES)</Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">KES</span>
+                  <Input
+                    type="number"
+                    value={offeredPrice}
+                    onChange={(e) => setOfferedPrice(e.target.value)}
+                    placeholder={String(minPrice)}
+                    className="pl-12"
+                    min={minPrice}
+                    data-testid="input-offered-price"
+                  />
+                </div>
+                {offeredPrice && Number(offeredPrice) < minPrice && (
+                  <p className="text-xs text-destructive mt-1">
+                    Price must be at least KES {minPrice.toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              {offeredPrice && Number(offeredPrice) >= minPrice && (
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total job price</span>
+                    <span className="font-bold">KES {Number(offeredPrice).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Deposit (30%) — paid now</span>
+                    <span className="font-bold text-primary">KES {depositAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Balance — paid after job</span>
+                    <span className="font-bold">KES {(Number(offeredPrice) - depositAmount).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                disabled={!offeredPrice || Number(offeredPrice) < minPrice}
+                onClick={() => go(3)}
+                data-testid="button-next-price"
+              >
+                Set Schedule <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           )}
 
-          {/* ── Step 3: Worker ── */}
+          {/* ── Step 3: Schedule ── */}
           {step === 3 && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Choose a Fundi</h2>
-              {loadingWorkers ? (
-                <div className="text-center py-8 text-muted-foreground">Finding fundis near you...</div>
-              ) : workers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No fundis available right now. Try again later.</div>
-              ) : (
-                <div className="space-y-3">
-                  {workers.map((w) => (
-                    <div key={w.id} onClick={() => setSelectedWorker(w)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedWorker?.id === w.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
-                      <div className="flex items-start gap-3">
-                        <Avatar className="w-12 h-12">
-                          <AvatarImage src={w.profileImage || getWorkerImage(w.specialty)} />
-                          <AvatarFallback>{w.name?.[0] ?? "F"}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold">{w.name}</p>
-                            <Badge variant="secondary" className="gap-1 text-xs">
-                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                              {w.rating ?? "4.5"}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{w.specialty}</p>
-                          <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                            {w.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.location}</span>}
-                            {w.experience && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{w.experience} yrs</span>}
-                          </div>
-                          <WorkerPhotos workerId={w.id} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button className="w-full" disabled={!selectedWorker} onClick={() => go(4)}>
-                Book {selectedWorker?.name ?? "Selected Fundi"} <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          )}
+              <h2 className="font-semibold text-lg">When Do You Need This?</h2>
 
-          {/* ── Step 4: Schedule ── */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <h2 className="font-semibold text-lg">Schedule & Confirm</h2>
               <div className="flex gap-3">
-                <Button variant={isNow ? "default" : "outline"} className="flex-1" onClick={() => setIsNow(true)}>
+                <Button
+                  variant={isNow ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setIsNow(true)}
+                  data-testid="button-schedule-now"
+                >
                   <Zap className="w-4 h-4 mr-2" /> Right Now
                 </Button>
-                <Button variant={!isNow ? "default" : "outline"} className="flex-1" onClick={() => setIsNow(false)}>
+                <Button
+                  variant={!isNow ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setIsNow(false)}
+                  data-testid="button-schedule-later"
+                >
                   <Calendar className="w-4 h-4 mr-2" /> Schedule
                 </Button>
               </div>
+
               {!isNow && (
                 <div className="space-y-3">
                   <div>
                     <Label>Date</Label>
-                    <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className="mt-1" />
+                    <Input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      className="mt-1"
+                      data-testid="input-date"
+                    />
                   </div>
                   <div>
                     <Label>Time</Label>
-                    <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} className="mt-1" />
+                    <Input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="mt-1"
+                      data-testid="input-time"
+                    />
                   </div>
                 </div>
               )}
@@ -463,120 +472,62 @@ export default function BookingFlow() {
               {/* Summary */}
               <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
                 <p><span className="text-muted-foreground">Category:</span> <strong>{category}</strong></p>
-                <p><span className="text-muted-foreground">Fundi:</span> <strong>{selectedWorker?.name}</strong></p>
+                <p><span className="text-muted-foreground">Area:</span> <strong className="capitalize">{area.replace("-", " ")}</strong></p>
                 <p><span className="text-muted-foreground">Location:</span> <strong>{jobLocation}</strong></p>
-                {quote && <p><span className="text-muted-foreground">Deposit:</span> <strong className="text-primary">KES {quote.deposit.toLocaleString()}</strong></p>}
+                <p><span className="text-muted-foreground">Offered Price:</span> <strong className="text-primary">KES {Number(offeredPrice).toLocaleString()}</strong></p>
+                <p><span className="text-muted-foreground">Deposit:</span> <strong>KES {depositAmount.toLocaleString()}</strong></p>
+                <p><span className="text-muted-foreground">When:</span> <strong>{isNow ? "As soon as possible" : `${scheduledDate} at ${scheduledTime}`}</strong></p>
               </div>
 
-              <Button className="w-full" disabled={depositLoading || (!isNow && (!scheduledDate || !scheduledTime))}
-                onClick={() => { createBooking(); }}>
-                {depositLoading ? "Creating booking..." : "Confirm Booking"}
+              <Button
+                className="w-full"
+                disabled={submitting || (!isNow && (!scheduledDate || !scheduledTime))}
+                onClick={postJob}
+                data-testid="button-post-job"
+              >
+                {submitting ? "Posting..." : (
+                  <><Store className="w-4 h-4 mr-2" /> Post to Marketplace</>
+                )}
               </Button>
             </div>
           )}
 
-          {/* ── Step 5: Pay Deposit ── */}
-          {step === 5 && (
-            <div className="space-y-5">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-8 h-8 text-green-600" />
-                </div>
-                <h2 className="text-xl font-bold">Booking Confirmed!</h2>
-                <p className="text-sm text-muted-foreground mt-1">Pay deposit to activate your fundi.</p>
-              </div>
-
-              {/* Fundi contact */}
-              {selectedWorker && (
-                <div className="border rounded-xl p-4 space-y-2">
-                  <p className="font-semibold text-sm">Your Fundi</p>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={selectedWorker?.profileImage || getWorkerImage(selectedWorker?.specialty)} />
-                      <AvatarFallback>{selectedWorker?.name?.[0] ?? "?"}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{selectedWorker?.name ?? "Your Fundi"}</p>
-                      <p className="text-xs text-muted-foreground">{selectedWorker?.specialty ?? ""}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Phone className="w-4 h-4" /><span>{selectedWorker?.phone ?? "—"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="w-4 h-4" /><span>{selectedWorker?.email ?? "—"}</span>
-                  </div>
-                </div>
-              )}
-
-              {!paymentDone ? (
-                <div className="space-y-3">
-                  <div className="bg-muted rounded-xl p-4 text-center space-y-1">
-                    <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
-                    <p className="text-4xl font-bold tracking-widest text-primary">324225</p>
-                    <p className="text-xs text-muted-foreground">Snap-Fix Kenya</p>
-                  </div>
-                  <div className="text-sm text-muted-foreground space-y-1 px-1">
-                    <p>1. Open M-Pesa on your phone</p>
-                    <p>2. Select <strong>Lipa na M-Pesa</strong></p>
-                    <p>3. Select <strong>Buy Goods & Services</strong></p>
-                    <p>4. Enter Till: <strong>324225</strong></p>
-                    <p>5. Enter amount: <strong>KES {quote?.deposit.toLocaleString() ?? "—"}</strong></p>
-                    <p>6. Enter PIN and confirm</p>
-                  </div>
-                  <Button className="w-full bg-green-600" onClick={async () => {
-                    if (!jobRequest || !user) return;
-                    await fetch("/api/transactions/pending", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ userId: user.id, jobId: jobRequest.id, amount: quote?.deposit ?? 0, type: "deposit", phone: user.phone }),
-                    });
-                    await fetch(`/api/job-requests/${jobRequest.id}/status`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "awaiting-deposit-approval" }),
-                    });
-                    toast({ title: "Payment recorded!", description: "Waiting for admin to verify..." });
-                  }}>
-                    <Banknote className="w-4 h-4 mr-2" /> I Have Paid
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center space-y-2">
-                    <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto" />
-                    <p className="font-semibold text-green-700">Deposit Confirmed!</p>
-                    <p className="text-xs text-muted-foreground">Your fundi has been notified and is on the way.</p>
-                  </div>
-                  <Button className="w-full" onClick={() => navigate("/requests")}>
-                    View My Requests
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Step 6: Complete & Review ── */}
-          {step === 6 && (
+          {/* ── Step 4: Posted! ── */}
+          {step === 4 && (
             <div className="space-y-5 text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-8 h-8 text-primary" />
+              <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-10 h-10 text-green-600" />
               </div>
-              <h2 className="text-xl font-bold">Job Complete!</h2>
-              <p className="text-sm text-muted-foreground">Thank you for using Snap-Fix Kenya</p>
-              <div className="text-left space-y-2">
-                <Label>Rate your fundi</Label>
-                <div className="flex gap-2 justify-center">
-                  {[1,2,3,4,5].map((s) => (
-                    <button key={s} onClick={() => setRating(s)} className="text-3xl">
-                      {s <= rating ? "⭐" : "☆"}
-                    </button>
-                  ))}
-                </div>
-                <Textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Share your experience..." rows={3} />
+              <div>
+                <h2 className="text-xl font-bold">Job Posted!</h2>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your job is now live in the Snap-Fix marketplace. Qualified Fundis in your area can see it and claim it.
+                </p>
               </div>
-              <Button className="w-full" onClick={submitReview}>Submit & Finish</Button>
+
+              <div className="bg-muted/50 rounded-xl p-4 text-sm text-left space-y-2">
+                <p><span className="text-muted-foreground">Category:</span> <strong>{category}</strong></p>
+                <p><span className="text-muted-foreground">Location:</span> <strong>{jobLocation}</strong></p>
+                <p><span className="text-muted-foreground">Offered Price:</span> <strong className="text-primary">KES {Number(offeredPrice).toLocaleString()}</strong></p>
+                <p><span className="text-muted-foreground">Deposit Due:</span> <strong>KES {depositAmount.toLocaleString()}</strong> <span className="text-muted-foreground">(after Fundi accepts)</span></p>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-md px-4 py-3 text-sm text-blue-700 dark:text-blue-400 text-left flex items-start gap-2">
+                <Banknote className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Once a Fundi claims your job, you'll get a notification and can pay the deposit from <strong>My Requests</strong>.</span>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Button className="w-full" onClick={() => navigate("/requests")} data-testid="button-view-requests">
+                  View My Requests
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => {
+                  setStep(0); setCategory(""); setDescription(""); setArea("");
+                  setJobLocation(""); setOfferedPrice(""); setImageUrl(""); setAiCategory("");
+                }} data-testid="button-post-another">
+                  Post Another Job
+                </Button>
+              </div>
             </div>
           )}
 

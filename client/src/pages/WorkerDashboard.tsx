@@ -18,12 +18,14 @@ import {
   Wallet, Briefcase, ShieldCheck, Camera, MapPin, Clock,
   CheckCircle2, LogOut, ArrowRight, AlertCircle, Upload,
   Phone, CreditCard, TrendingUp, X, FileCheck, Eye, Navigation,
+  Store, Filter,
 } from "lucide-react";
 import type { JobRequest } from "@shared/schema";
 import snapfixLogo from "/snapfix-logo.jpg";
 
 const STATUS_BADGE: Record<string, { label: string; class: string }> = {
-  pending:                     { label: "Pending",                   class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
+  open:                        { label: "Open",                      class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  pending:                     { label: "Awaiting Deposit",          class: "bg-green-500/10 text-green-600 dark:text-green-400" },
   quoted:                      { label: "Quoted",                    class: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
   "awaiting-deposit-approval": { label: "Awaiting Admin Approval",   class: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
   "deposit-paid":              { label: "Deposit Confirmed",         class: "bg-primary/10 text-primary" },
@@ -139,10 +141,19 @@ export default function WorkerDashboard() {
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
+  const [marketplaceFilter, setMarketplaceFilter] = useState<"mine" | "all">("mine");
+
   const { data: jobs = [], isLoading } = useQuery<JobRequest[]>({
     queryKey: ["/api/job-requests/worker", user?.id],
     queryFn: () => fetch(`/api/job-requests/worker/${user?.id}`).then((r) => r.json()),
     enabled: !!user?.id,
+  });
+
+  const { data: marketplaceJobs = [], isLoading: loadingMarket } = useQuery<JobRequest[]>({
+    queryKey: ["/api/job-requests/marketplace"],
+    queryFn: () => fetch("/api/job-requests/marketplace").then((r) => r.json()),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
   });
 
   const { data: transactions = [] } = useQuery({
@@ -168,6 +179,11 @@ export default function WorkerDashboard() {
     queryFn: () => fetch(`/api/workers/${user?.id}`).then((r) => r.ok ? r.json() : null),
     enabled: !!user?.id,
   });
+
+  const workerSpecialty: string = workerProfile?.specialty ?? "";
+  const filteredMarket = marketplaceFilter === "mine" && workerSpecialty
+    ? marketplaceJobs.filter((j) => j.category.toLowerCase() === workerSpecialty.toLowerCase())
+    : marketplaceJobs;
 
   const [photoUploading, setPhotoUploading] = useState(false);
   const handleUploadProfilePhoto = async (file: File) => {
@@ -210,6 +226,24 @@ export default function WorkerDashboard() {
   const uploadedCount = [idFront, idBack, ...samples.filter(Boolean)].length;
   const uploadProgress = Math.min(100, Math.round((uploadedCount / 7) * 100));
 
+
+  const handleClaimJob = async (jobId: string) => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/job-requests/${jobId}/claim`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workerId: user.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to claim job");
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/marketplace"] });
+      qc.invalidateQueries({ queryKey: ["/api/job-requests/worker", user.id] });
+      toast({ title: "Job claimed!", description: "The customer has been notified. Wait for their deposit." });
+    } catch (e: any) {
+      toast({ title: "Could not claim job", description: e.message, variant: "destructive" });
+    }
+  };
 
   const handleAcceptJob = async (jobId: string) => {
     try {
@@ -392,10 +426,13 @@ export default function WorkerDashboard() {
       </div>
 
       <div className="px-4">
-        <Tabs defaultValue="jobs">
+        <Tabs defaultValue="marketplace">
           <TabsList className="w-full mb-4">
+            <TabsTrigger value="marketplace" className="flex-1" data-testid="tab-marketplace">
+              <Store className="w-4 h-4 mr-1.5" /> Marketplace
+            </TabsTrigger>
             <TabsTrigger value="jobs" className="flex-1" data-testid="tab-jobs">
-              <Briefcase className="w-4 h-4 mr-1.5" /> Jobs
+              <Briefcase className="w-4 h-4 mr-1.5" /> My Jobs
             </TabsTrigger>
             <TabsTrigger value="wallet" className="flex-1" data-testid="tab-wallet">
               <Wallet className="w-4 h-4 mr-1.5" /> Wallet
@@ -404,6 +441,103 @@ export default function WorkerDashboard() {
               <ShieldCheck className="w-4 h-4 mr-1.5" /> Verify
             </TabsTrigger>
           </TabsList>
+
+          {/* ── Marketplace tab ── */}
+          <TabsContent value="marketplace" className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold text-sm">Available Jobs Near You</h3>
+                <p className="text-xs text-muted-foreground">Claim a job to notify the customer and get started.</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                <select
+                  className="text-xs border rounded-md px-2 py-1 bg-background"
+                  value={marketplaceFilter}
+                  onChange={(e) => setMarketplaceFilter(e.target.value as "mine" | "all")}
+                  data-testid="select-market-filter"
+                >
+                  <option value="mine">My Specialty</option>
+                  <option value="all">All Categories</option>
+                </select>
+              </div>
+            </div>
+
+            {loadingMarket ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />)}
+              </div>
+            ) : filteredMarket.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Store className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">No open jobs right now</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {marketplaceFilter === "mine"
+                      ? `No ${workerSpecialty || "specialty"} jobs available. Try showing all categories.`
+                      : "Check back soon — customers post new jobs regularly."}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredMarket.map((job) => {
+                  const deposit = job.depositAmount ?? (job.quotedAmount ? Math.round(job.quotedAmount * 0.3) : null);
+                  return (
+                    <Card key={job.id} className="border-primary/20" data-testid={`card-market-job-${job.id}`}>
+                      <CardContent className="py-4 space-y-3">
+                        <div className="flex items-start gap-3">
+                          {job.imageUrl && (
+                            <img
+                              src={job.imageUrl}
+                              alt="Job photo"
+                              className="w-20 h-20 rounded-lg object-cover flex-shrink-0 cursor-pointer border border-border"
+                              onClick={() => setPreviewImg(job.imageUrl)}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <div>
+                                <span className="font-semibold text-sm">{job.category}</span>
+                                {job.area && (
+                                  <span className="text-xs text-muted-foreground ml-1.5 capitalize">· {job.area.replace("-", " ")}</span>
+                                )}
+                              </div>
+                              {job.quotedAmount && (
+                                <span className="font-bold text-primary text-sm">KES {job.quotedAmount.toLocaleString()}</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{job.description}</p>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                              <MapPin className="w-3 h-3" /> {job.location}
+                            </div>
+                            {deposit && (
+                              <p className="text-xs mt-1">
+                                <span className="text-muted-foreground">Deposit (30%):</span>{" "}
+                                <span className="font-semibold text-green-600 dark:text-green-400">KES {deposit.toLocaleString()}</span>
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {job.isNow ? "Needed immediately" : job.preferredDate ? `Scheduled: ${job.preferredDate}` : "Flexible timing"}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          className="w-full gap-2"
+                          size="sm"
+                          onClick={() => handleClaimJob(job.id)}
+                          data-testid={`button-claim-job-${job.id}`}
+                        >
+                          <ArrowRight className="w-4 h-4" /> Claim This Job
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
 
           {/* ── Jobs tab ── */}
           <TabsContent value="jobs" className="space-y-4">

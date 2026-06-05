@@ -346,6 +346,28 @@ export default function RequestsPage() {
               <Card key={req.id} data-testid={`card-request-${req.id}`}>
                 <CardContent className="p-6 space-y-4">
 
+                  {/* ── Seeking Fundi banner (open status) ── */}
+                  {req.status === "open" && (
+                    <div className="flex items-center gap-3 bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg px-4 py-3">
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-sm">Your job is live in the marketplace</p>
+                        <p className="text-xs mt-0.5 opacity-80">Fundis are browsing and can claim your job. You'll get notified when one does.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Fundi claimed — pay deposit banner ── */}
+                  {req.status === "pending" && req.workerId && (
+                    <div className="flex items-center gap-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg px-4 py-3">
+                      <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-sm">A Fundi claimed your job!</p>
+                        <p className="text-xs mt-0.5 opacity-80">Pay the deposit below to confirm and get started.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Awaiting deposit approval banner ── */}
                   {req.status === "awaiting-deposit-approval" && (
                     <div className="flex items-center gap-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg px-4 py-3">
@@ -539,19 +561,20 @@ export default function RequestsPage() {
                       </Button>
                     )}
 
-                    {/* Pay Deposit — when job is quoted */}
-                    {req.status === "quoted" && req.quotedAmount && (
+                    {/* Pay Deposit — when fundi claimed (pending) or quoted */}
+                    {(req.status === "pending" || req.status === "quoted") && req.workerId && req.depositAmount && (
                       <Button
                         size="sm"
-                        className="gap-1.5 bg-primary"
+                        className="gap-1.5 bg-green-600"
                         onClick={() => setPayDepositJob(req)}
+                        data-testid={`button-pay-deposit-${req.id}`}
                       >
-                        <Banknote className="w-4 h-4" /> Pay Deposit — KES {Math.round(req.quotedAmount * 0.3).toLocaleString()}
+                        <Banknote className="w-4 h-4" /> Pay Deposit — KES {req.depositAmount.toLocaleString()}
                       </Button>
                     )}
 
-                    {/* Cancel Request — pending/quoted only */}
-                    {(req.status === "pending" || req.status === "quoted") && (
+                    {/* Cancel Request — open or pending only */}
+                    {(req.status === "open" || req.status === "pending" || req.status === "quoted") && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -574,11 +597,11 @@ export default function RequestsPage() {
       {/* M-Pesa deposit payment dialog */}
       <StkPushDialog
         open={!!payDepositJob}
-        amount={Math.round((payDepositJob?.quotedAmount ?? 0) * 0.3)}
+        amount={payDepositJob?.depositAmount ?? Math.round((payDepositJob?.quotedAmount ?? 0) * 0.3)}
         phone={user?.phone ?? "+254700000000"}
         onSuccess={async () => {
           if (!payDepositJob) return;
-          const depositAmt = Math.round((payDepositJob.quotedAmount ?? 0) * 0.3);
+          const depositAmt = payDepositJob.depositAmount ?? Math.round((payDepositJob.quotedAmount ?? 0) * 0.3);
           await fetch('/api/transactions/pending', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

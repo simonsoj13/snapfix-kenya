@@ -272,6 +272,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/job-requests/marketplace", async (req, res) => {
+    const all = await storage.getAllJobRequests();
+    const open = all.filter((j) => j.status === "open" && !j.workerId);
+    res.json(open);
+  });
+
+  app.patch("/api/job-requests/:id/claim", async (req, res) => {
+    const { workerId } = req.body;
+    if (!workerId) return res.status(400).json({ error: "workerId required" });
+    const job = await storage.getJobRequest(req.params.id);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.workerId) return res.status(409).json({ error: "Job already claimed" });
+    const updated = await storage.updateJobRequest(req.params.id, {
+      workerId,
+      status: "pending",
+    });
+    // Notify the customer that a fundi claimed their job
+    storage.createNotification({
+      userId: job.userId,
+      type: "job_update",
+      title: "A Fundi claimed your job!",
+      message: `A ${job.category} specialist has accepted your job. Head to My Requests to pay the deposit and get started.`,
+      jobId: job.id,
+      isRead: false,
+    }).catch(() => {});
+    res.json(updated);
+  });
+
   app.get("/api/job-requests/user/:userId", async (req, res) => {
     res.json(await storage.getJobRequestsByUser(req.params.userId));
   });

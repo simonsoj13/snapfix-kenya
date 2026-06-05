@@ -22,17 +22,29 @@ A full-stack service marketplace app connecting users with skilled repair worker
 - `/profile` — User Profile: Real auth info + logout
 - `/admin` — Admin Dashboard: Analytics, live map, worker/request management
 
-### Multi-Step Booking Flow (/book)
-1. **Photo** — Upload/take a photo; AI detects repair category
-2. **Describe** — Select area (bathroom/kitchen/sitting-room/bedroom/compound) + describe problem + location
-3. **Quote** — Fake AI generates quote (KES), breakdown, deposit (30%)
-4. **Worker** — Browse and select a worker for the detected category
-5. **Schedule** — "Right Now" or pick date+time; confirm deposit payment
-6. **Booked** — Worker contact (phone + email) revealed; "Worker Deployed" status
-7. **Payment** — M-Pesa STK Push simulation for balance; star rating + tip
+### Multi-Step Booking Flow (/book)  ← Marketplace Model
+1. **Photo** — Optional upload; AI detects repair category from image
+2. **Describe** — Select category, area, describe problem + enter location
+3. **Your Price** — Customer sets offered price (minimum per-category floor enforced); shows 30% deposit preview
+4. **Schedule** — "Right Now" or pick date+time; job summary shown before posting
+5. **Posted!** — Job is live in marketplace (status: "open"); customer directed to My Requests
+
+### Job Lifecycle
+- `"open"` → Customer posted job; visible to all Fundis in marketplace (no workerId)
+- `"pending"` → Fundi claimed job (workerId set); customer notified to pay deposit
+- `"awaiting-deposit-approval"` → Customer paid deposit; admin verifying
+- `"deposit-paid"` → Deposit confirmed; Fundi starts work
+- `"fundi-arrived"` → Fundi checked in on-site
+- `"balance-due"` / `"balance-paid-pending"` → Work done; balance payment flow
+- `"completed"` / `"cancelled"` — Final states
+
+### Worker Marketplace (WorkerDashboard)
+- **Marketplace tab** — Browse all open jobs (GET /api/job-requests/marketplace); filter by own specialty or all categories; "Claim This Job" button notifies customer and assigns worker
+- **My Jobs tab** — Existing claimed/active/completed jobs
+- **Wallet & Verify tabs** — unchanged
 
 ### Key Components
-- `BookingFlow` — 7-step wizard (photo → describe → quote → worker → schedule → booked → pay+rate)
+- `BookingFlow` — 5-step customer job-posting wizard (photo → describe → price → schedule → posted)
 - `LoginPage` — Auth with email/phone + password, role picker
 - `AuthContext` — Global auth state persisted to localStorage
 - `WorkerCard` — Displays a worker with profile, rating, rate, distance

@@ -2,14 +2,15 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Activity, CheckCircle2, XCircle, MapPin, CreditCard, Banknote } from "lucide-react";
 
 type Status =
-  | "pending" | "quoted"
+  | "open" | "pending" | "quoted"
   | "awaiting-deposit-approval" | "deposit-paid"
   | "fundi-arrived" | "in-progress"
   | "balance-due" | "balance-paid-pending"
   | "completed" | "cancelled";
 
 const CONFIG: Record<Status, { label: string; icon: React.ElementType; className: string }> = {
-  pending:                     { label: "Pending",                  icon: Clock,         className: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400" },
+  open:                        { label: "Seeking Fundi",            icon: Clock,         className: "bg-blue-500/10 text-blue-700 dark:text-blue-400" },
+  pending:                     { label: "Fundi Claimed — Pay Deposit", icon: Banknote,   className: "bg-green-500/10 text-green-700 dark:text-green-400" },
   quoted:                      { label: "Quoted",                   icon: CreditCard,    className: "bg-blue-500/10 text-blue-700 dark:text-blue-400" },
   "awaiting-deposit-approval": { label: "Awaiting Admin Approval",  icon: Clock,         className: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400" },
   "deposit-paid":              { label: "Deposit Confirmed",        icon: Banknote,      className: "bg-primary/10 text-primary" },
