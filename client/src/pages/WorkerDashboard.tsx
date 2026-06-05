@@ -166,6 +166,8 @@ export default function WorkerDashboard() {
     queryKey: ["/api/user", user?.id],
     queryFn: () => fetch(`/api/user/${user?.id}`).then(r => r.json()),
     enabled: !!user?.id,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: verifyStatus, refetch: refetchVerify } = useQuery({

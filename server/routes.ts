@@ -377,10 +377,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       } else if (tx.type === "balance") {
-        const job = await storage.updateJobRequest(tx.jobId, { status: "completed" });
-        if (job) {
-          storage.createNotification({ userId: job.userId, type: "job_completed", title: "Job Completed", message: `Your ${job.category} job is now complete. Thank you for using Snap-Fix!`, jobId: job.id, isRead: false }).catch(() => {});
-          if (job.workerId) storage.createNotification({ userId: job.workerId, type: "balance_paid", title: "Balance Payment Received", message: `Balance payment for your ${job.category} job has been confirmed. Funds will be credited to your wallet.`, jobId: job.id, isRead: false }).catch(() => {});
+        // Credit fundi wallet — do this first, independent of job status update
+        const workerId = tx.workerId;
+        if (workerId) {
+          await storage.updateUserWallet(workerId, tx.amount).catch(() => {});
+          notifyUser(workerId, {
+            type: "balance_paid",
+            title: "Payment received — wallet updated",
+            message: `KES ${tx.amount.toLocaleString()} for your ${tx.category || "repair"} job has been credited to your wallet.`,
+            jobId: tx.jobId || null,
+          });
+        }
+        // Update job status to completed
+        if (tx.jobId) {
+          const job = await storage.updateJobRequest(tx.jobId, { status: "completed" });
+          if (job) {
+            storage.createNotification({
+              userId: job.userId,
+              type: "job_completed",
+              title: "Job Complete",
+              message: `Your ${job.category} job is now complete. Thank you for using Snap-Fix!`,
+              jobId: job.id,
+              isRead: false,
+            }).catch(() => {});
+          }
         }
       }
     }
@@ -621,6 +641,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await storage.getUserById(userId);
     if (!user) return res.status(404).json({ error: "Not found" });
     res.json(user);
+  });
+
+  // Get any user by ID (used by WorkerDashboard wallet query)
+  app.get("/api/user/:id", async (req, res) => {
+    const user = await storage.getUserById(req.params.id);
+    if (!user) return res.status(404).json({ error: "Not found" });
+    const { password: _, ...safe } = user as any;
+    res.json(safe);
   });
 
   // Update user profile

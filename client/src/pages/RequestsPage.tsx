@@ -21,41 +21,52 @@ import { useLocation } from "wouter";
 type ExtJobRequest = JobRequest & { workerOnWay?: number; estimatedArrival?: string | null };
 
 /* ── M-Pesa Till Payment Dialog ──────────────────────────────────────── */
+const TILL = "324225";
 function StkPushDialog({
-  open, amount, onSuccess, onClose,
-}: { open: boolean; amount: number; phone: string; onSuccess: () => void; onClose: () => void }) {
+  open, amount, type = "balance", onSuccess, onClose,
+}: { open: boolean; amount: number; phone: string; type?: "deposit" | "balance"; onSuccess: () => void; onClose: () => void }) {
+  const isDeposit = type === "deposit";
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="w-5 h-5 text-green-600" /> Pay Balance via M-Pesa
+            <Smartphone className="w-5 h-5 text-green-600" />
+            {isDeposit ? "Pay Deposit via M-Pesa" : "Pay Balance via M-Pesa"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-5">
           <div className="bg-green-500/10 border border-green-500/20 rounded-md p-4 text-center space-y-3">
-            <p className="text-sm font-semibold text-muted-foreground">Balance Payment</p>
+            <p className="text-sm font-semibold text-muted-foreground">
+              {isDeposit ? "Deposit Payment (30%)" : "Balance Payment"}
+            </p>
             <p className="text-3xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">
+              {isDeposit ? "Securely held until job is complete" : "Final payment to close this job"}
+            </p>
           </div>
 
           <div className="bg-muted rounded-md p-4 text-center space-y-1">
             <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
-            <p className="text-4xl font-bold tracking-widest text-primary" data-testid="text-till-number">324225</p>
-            <p className="text-xs text-muted-foreground">Snap-Fix Kenya</p>
+            <p className="text-4xl font-bold tracking-widest text-primary" data-testid="text-till-number">{TILL}</p>
+            <p className="text-xs text-muted-foreground">Snap-Fix Kenya — Buy Goods</p>
           </div>
 
-          <div className="space-y-1 text-sm text-muted-foreground">
-            <p>1. Open M-Pesa on your phone</p>
+          <div className="space-y-1.5 text-sm text-muted-foreground bg-muted/50 rounded-md p-3">
+            <p className="font-medium text-foreground text-xs mb-2">How to pay:</p>
+            <p>1. Open <strong>M-Pesa</strong> on your phone</p>
             <p>2. Select <strong>Lipa na M-Pesa</strong></p>
-            <p>3. Select <strong>Buy Goods & Services</strong></p>
-            <p>4. Enter Till: <strong>324225</strong></p>
+            <p>3. Select <strong>Buy Goods &amp; Services</strong></p>
+            <p>4. Enter Till: <strong>{TILL}</strong></p>
             <p>5. Enter amount: <strong>KES {amount.toLocaleString()}</strong></p>
-            <p>6. Enter your PIN and confirm</p>
+            <p>6. Enter your M-Pesa PIN and confirm</p>
           </div>
 
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-3">
             <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
-              After paying, tap below so admin can verify and complete your job.
+              {isDeposit
+                ? "After paying, tap below. Admin will verify and your Fundi will be notified to begin."
+                : "After paying, tap below. Admin will verify and your job will be marked complete."}
             </p>
           </div>
 
@@ -597,6 +608,7 @@ export default function RequestsPage() {
       {/* M-Pesa deposit payment dialog */}
       <StkPushDialog
         open={!!payDepositJob}
+        type="deposit"
         amount={payDepositJob?.depositAmount ?? Math.round((payDepositJob?.quotedAmount ?? 0) * 0.3)}
         phone={user?.phone ?? "+254700000000"}
         onSuccess={async () => {
