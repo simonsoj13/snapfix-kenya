@@ -146,38 +146,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin-only login endpoint (separate, secured)
   app.post("/api/auth/admin-login", async (req, res) => {
-  // Google Login
-  app.post("/api/auth/google", async (req, res) => {
-    try {
-      const { token } = req.body;
-      const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-      const payload = await googleRes.json();
-      if (!payload.email) return res.status(401).json({ error: "Invalid token" });
-      let user = await storage.getUserByEmail(payload.email);
-      if (!user) {
-        user = await storage.createUser({
-          name: payload.name || "Google User",
-          email: payload.email,
-          phone: "",
-          password: "",
-          role: "customer",
-        });
-      }
-      const { password: _, ...safe } = user;
-      res.json(safe);
-    } catch (err: any) {
-      res.status(401).json({ error: "Google login failed" });
-    }
-  });
     try {
       const { email, password } = adminLoginSchema.parse(req.body);
       const adminEmail = process.env.ADMIN_EMAIL || "admin@snapfix.ke";
       const adminPassword = process.env.ADMIN_PASSWORD || "Admin@2024";
-      // Check against env-var credentials (works in any environment, memory-independent)
       if (email.toLowerCase() !== adminEmail.toLowerCase() || password !== adminPassword) {
         return res.status(401).json({ error: "Invalid admin credentials" });
       }
-      // Build a safe admin user object from env vars + storage fallback
       const storedUser = await storage.getUserByEmail(email);
       const adminUser = storedUser ?? {
         id: "admin",
@@ -396,18 +371,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (tx.type === "deposit") {
         const job = await storage.updateJobRequest(tx.jobId, { status: "deposit-paid", workerContactShown: 1 });
         if (job) {
-          notifyUser(job.userId, { type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id })
-      broadcastNotification(job.userId, notification);
+          notifyUser(job.userId, { type: "deposit_approved", title: "Deposit Confirmed", message: "Your deposit has been approved. Your Fundi's contact details are now visible.", jobId: job.id });
           if (job.workerId) {
             storage.createNotification({ userId: job.workerId, type: "deposit_approved", title: "Job Deposit Paid", message: `Customer deposit for your ${job.category} job has been confirmed. Get ready!`, jobId: job.id, isRead: false }).catch(() => {});
-          }
-
-          // === AUTO-VERIFY when Fundi also accepts ===
-          const updatedJob = await storage.getJobRequest(job.id);
-          if (updatedJob && (updatedJob.status === "in-progress" || updatedJob.workerAcceptedAt)) {
-            await storage.updateJobRequest(tx.jobId, { status: "verified" });
-            notifyUser(job.userId, { type: "booking_verified", title: "✅ Booking Fully Verified!", message: "Both Admin and Fundi have accepted. Your job is now officially active.", jobId: job.id })
-      broadcastNotification(job.userId, notification);
           }
         }
       } else if (tx.type === "balance") {
@@ -638,8 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserById(req.params.userId);
       if (user) {
         await storage.createWorkerFromVerification(updated, user);
-        notifyUser(req.params.userId, { type: "verification_approved", title: "Verification Approved!", message: "Congratulations! Your Fundi profile has been approved. You can now receive job requests.", jobId: null })
-      broadcastNotification(req.params.userId, notification);
+        notifyUser(req.params.userId, { type: "verification_approved", title: "Verification Approved!", message: "Congratulations! Your Fundi profile has been approved. You can now receive job requests.", jobId: null });
       }
     } else if (status === "rejected") {
       const note = reviewNote ? ` Reason: ${reviewNote}` : "";
