@@ -14,7 +14,7 @@ import type { JobRequest } from "@shared/schema";
 import {
   Calendar, MapPin, Wrench, Zap, Navigation, Eye, Image,
   CheckCircle2, Smartphone, Banknote, UserX, UserCheck, ClipboardCheck,
-  ArrowRight, X,
+  ArrowRight, X, Star,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -618,7 +618,19 @@ export default function RequestsPage() {
           await fetch('/api/transactions/pending', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user?.id, jobId: payDepositJob.id, amount: depositAmt, type: 'deposit', phone: user?.phone }),
+            body: JSON.stringify({
+              userId: user?.id,
+              workerId: payDepositJob.workerId ?? "",
+              jobId: payDepositJob.id,
+              amount: depositAmt,
+              type: 'deposit',
+              phone: user?.phone ?? "",
+              mpesaRef: 'PENDING-' + Date.now(),
+              customerName: user?.name ?? "Customer",
+              workerName: "",
+              category: payDepositJob.category,
+              status: 'pending',
+            }),
           });
           await fetch('/api/job-requests/' + payDepositJob.id + '/status', {
             method: 'PATCH',
@@ -627,6 +639,7 @@ export default function RequestsPage() {
           });
           setPayDepositJob(null);
           qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
+          toast({ title: "Deposit recorded!", description: "Admin will verify and confirm your booking." });
         }}
         onClose={() => setPayDepositJob(null)}
       />
@@ -643,22 +656,29 @@ export default function RequestsPage() {
       {/* Rating Dialog */}
       <Dialog open={!!ratingJob} onOpenChange={() => setRatingJob(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Rate your Fundi ⭐</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500" /> Rate your Fundi</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">How was your experience with {ratingJob?.category} service?</p>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-1">
               {[1,2,3,4,5].map(star => (
-                <button key={star} onClick={() => setStarRating(star)} className="text-3xl transition-transform hover:scale-110">
-                  {star <= starRating ? "⭐" : "☆"}
+                <button key={star} onClick={() => setStarRating(star)} className="transition-transform hover:scale-110 active:scale-95 p-1" data-testid={`button-star-${star}`}>
+                  <Star className={`w-9 h-9 transition-colors ${star <= starRating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`} />
                 </button>
               ))}
             </div>
+            <p className="text-center text-sm font-medium text-muted-foreground">
+              {starRating === 1 ? "Poor" : starRating === 2 ? "Fair" : starRating === 3 ? "Good" : starRating === 4 ? "Very Good" : "Excellent"}
+            </p>
             <div>
               <Label>Comment (optional)</Label>
               <Textarea value={ratingComment} onChange={e => setRatingComment(e.target.value)} placeholder="Tell others about your experience..." className="mt-1" rows={3} />
             </div>
-            <Button className="w-full" onClick={handleSubmitRating} disabled={submittingRating}>
-              {submittingRating ? "Submitting..." : "Submit Rating"}
+            <Button className="w-full gap-2" onClick={handleSubmitRating} disabled={submittingRating}>
+              {submittingRating ? (
+                <><div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" /> Submitting...</>
+              ) : (
+                <><Star className="w-4 h-4" /> Submit Rating</>
+              )}
             </Button>
           </div>
         </DialogContent>

@@ -140,6 +140,8 @@ export default function WorkerDashboard() {
   const [yearsExp, setYearsExp] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
+  // Sync isOnline from real worker profile once loaded
+  const [isOnlineSynced, setIsOnlineSynced] = useState(false);
 
   const [marketplaceFilter, setMarketplaceFilter] = useState<"mine" | "all">("mine");
 
@@ -181,6 +183,12 @@ export default function WorkerDashboard() {
     queryFn: () => fetch(`/api/workers/${user?.id}`).then((r) => r.ok ? r.json() : null),
     enabled: !!user?.id,
   });
+
+  // Sync isOnline once workerProfile is loaded
+  if (workerProfile && !isOnlineSynced) {
+    setIsOnline(workerProfile.availableNow === 1);
+    setIsOnlineSynced(true);
+  }
 
   const workerSpecialty: string = workerProfile?.specialty ?? "";
   const filteredMarket = marketplaceFilter === "mine" && workerSpecialty
@@ -309,6 +317,9 @@ export default function WorkerDashboard() {
           idFront,
           idBack,
           workSamples: samples.filter(Boolean),
+          specialty: specialty || "General",
+          bio: bio || "",
+          yearsExperience: yearsExp ? parseInt(yearsExp) : 0,
         }),
       });
       if (!res.ok) throw new Error("Failed to submit");
@@ -665,49 +676,82 @@ export default function WorkerDashboard() {
 
           {/* ── Wallet tab ── */}
           <TabsContent value="wallet" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-primary" /> Earnings Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">This Week</span>
-                  <span className="font-semibold">KES 8,700</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">This Month</span>
-                  <span className="font-semibold">KES 32,400</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Platform Fee (10%)</span>
-                  <span className="text-destructive font-semibold">- KES 3,240</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between text-sm font-bold">
-                  <span>Net Earnings</span>
-                  <span className="text-primary">KES 29,160</span>
-                </div>
-              </CardContent>
-            </Card>
-            <h3 className="text-sm font-semibold text-muted-foreground">TRANSACTION HISTORY</h3>
-            <div className="space-y-2">
-              {(transactions as any[]).map((tx: any) => (
-                <Card key={tx.id}>
-                  <CardContent className="py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium">{tx.label}</p>
-                        <p className="text-xs text-muted-foreground">{tx.date}</p>
-                      </div>
-                      <span className={`font-bold text-sm ${tx.type === "credit" ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
-                        {tx.type === "credit" ? "+" : "-"}KES {tx.amount.toLocaleString()}
-                      </span>
+            {(() => {
+              const txList = (transactions as any[]);
+              const completedTxs = txList.filter((t: any) => t.status === "completed");
+              const totalEarned = completedTxs.reduce((s: number, t: any) => s + (t.amount ?? 0), 0);
+              const platformFee = Math.round(totalEarned * 0.1);
+              const netEarnings = totalEarned - platformFee;
+              const now = new Date();
+              const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              const weekEarnings = completedTxs
+                .filter((t: any) => t.createdAt && new Date(t.createdAt) >= weekAgo)
+                .reduce((s: number, t: any) => s + (t.amount ?? 0), 0);
+              return (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" /> Earnings Summary
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">This Week</span>
+                      <span className="font-semibold">KES {weekEarnings.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Earned</span>
+                      <span className="font-semibold">KES {totalEarned.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Platform Fee (10%)</span>
+                      <span className="text-destructive font-semibold">- KES {platformFee.toLocaleString()}</span>
+                    </div>
+                    <div className="border-t pt-2 flex justify-between text-sm font-bold">
+                      <span>Net Earnings</span>
+                      <span className="text-primary">KES {netEarnings.toLocaleString()}</span>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+              );
+            })()}
+            <h3 className="text-sm font-semibold text-muted-foreground">TRANSACTION HISTORY</h3>
+            {(transactions as any[]).length === 0 ? (
+              <Card>
+                <CardContent className="py-10 text-center">
+                  <Wallet className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm font-semibold">No transactions yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Completed jobs will appear here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {(transactions as any[]).map((tx: any) => (
+                  <Card key={tx.id}>
+                    <CardContent className="py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {tx.type === "balance" ? "Balance Payment" : tx.type === "deposit" ? "Deposit" : "Reversal"}
+                            {tx.category ? ` — ${tx.category}` : ""}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                            {" · "}
+                            <span className={tx.status === "completed" ? "text-green-600 dark:text-green-400" : tx.status === "reversed" ? "text-destructive" : "text-yellow-600"}>
+                              {tx.status === "completed" ? "Approved" : tx.status === "reversed" ? "Reversed" : "Pending"}
+                            </span>
+                          </p>
+                        </div>
+                        <span className={`font-bold text-sm flex-shrink-0 ${tx.type === "reversal" || tx.status === "reversed" ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
+                          {tx.type === "reversal" || tx.status === "reversed" ? "-" : "+"}KES {(tx.amount ?? 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
             <Button className="w-full gap-2" data-testid="button-withdraw-mpesa">
               <CreditCard className="w-4 h-4" /> Withdraw KES {walletBalance.toLocaleString()} to M-Pesa
             </Button>

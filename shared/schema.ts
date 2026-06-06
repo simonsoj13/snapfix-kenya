@@ -40,7 +40,7 @@ export const jobRequests = pgTable("job_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
   workerId: varchar("worker_id"),
-  imageUrl: text("image_url").notNull(),
+  imageUrl: text("image_url").default(""),
   description: text("description").notNull(),
   category: text("category").notNull(),
   area: text("area").notNull().default(""),
@@ -56,6 +56,7 @@ export const jobRequests = pgTable("job_requests", {
   workerContactShown: integer("worker_contact_shown").notNull().default(0),
   workerOnWay: integer("worker_on_way").notNull().default(0),
   estimatedArrival: text("estimated_arrival"),
+  createdAt: text("created_at").default(sql`now()::text`),
 });
 
 // ── Reviews ───────────────────────────────────────────────────────────────────

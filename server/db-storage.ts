@@ -100,8 +100,8 @@ export class DatabaseStorage implements IStorage {
   async getJobRequestsByUser(userId: string) { return db.select().from(jobRequests).where(eq(jobRequests.userId, userId)); }
   async getJobRequestsByWorker(workerId: string) { return db.select().from(jobRequests).where(eq(jobRequests.workerId, workerId)); }
   async createJobRequest(request: InsertJobRequest): Promise<JobRequest> {
-    const safeRequest = { ...request, workerId: null, status: "open" };
-    const [job] = await db.insert(jobRequests).values(safeRequest).returning();
+    const safeRequest = { ...request, workerId: null, status: "open", createdAt: new Date().toISOString() };
+    const [job] = await db.insert(jobRequests).values(safeRequest as any).returning();
     return job;
   }
   async updateJobRequestStatus(id: string, status: string) {

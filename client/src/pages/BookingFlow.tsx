@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 const STEPS = ["Photo", "Describe", "Your Price", "Schedule", "Posted!"];
-const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Painting", "Welding", "HVAC", "Appliance", "General"];
+const CATEGORIES = ["Plumbing", "Electrical", "Carpentry", "Painting", "Welding", "HVAC", "Appliance", "Emergency", "General"];
 const AREAS = ["bathroom", "kitchen", "sitting-room", "bedroom", "compound", "outdoor"];
 
 export default function BookingFlow() {
@@ -528,11 +528,22 @@ export default function BookingFlow() {
                     await fetch('/api/transactions/pending', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: user?.id, jobId: postedJobId, amount: depositAmount, type: 'deposit', phone: user?.phone }),
+                      body: JSON.stringify({
+                        userId: user?.id,
+                        workerId: "",
+                        jobId: postedJobId,
+                        amount: depositAmount,
+                        type: 'deposit',
+                        phone: user?.phone ?? "",
+                        mpesaRef: 'PENDING-' + Date.now(),
+                        customerName: user?.name ?? "Customer",
+                        workerName: "",
+                        category,
+                        status: 'pending',
+                      }),
                     });
-                    // Status stays open until fundi claims the job
                     setDepositPaid(true);
-                    toast({ title: 'Payment recorded!', description: 'Waiting for admin to verify...' });
+                    toast({ title: 'Payment recorded!', description: 'Waiting for admin to verify. Your job is live in the marketplace.' });
                   }} data-testid="button-confirm-deposit">
                     <Banknote className="w-4 h-4 mr-2" /> I Have Paid
                   </Button>
@@ -544,7 +555,7 @@ export default function BookingFlow() {
                     <p className="font-semibold text-yellow-700 dark:text-yellow-400">Waiting for admin to confirm payment...</p>
                     <p className="text-xs text-muted-foreground">Once verified your fundi will be notified.</p>
                   </div>
-                  <Button className="w-full" onClick={() => navigate('/requests')} data-testid="button-view-requests">
+                  <Button className="w-full" onClick={() => { localStorage.removeItem("bookingDraft"); navigate('/requests'); }} data-testid="button-view-requests">
                     View My Requests
                   </Button>
                 </div>
