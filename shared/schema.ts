@@ -146,7 +146,7 @@ export const workerVerifications = pgTable("worker_verifications", {
   specialty: text("specialty"),
   bio: text("bio"),
   yearsExperience: integer("years_experience"),
-  status: text("status").notNull().default("pending"),
+  status: text("status").notNull().default("open"),
   submittedAt: text("submitted_at").notNull(),
   reviewedAt: text("reviewed_at"),
   reviewNote: text("review_note"),

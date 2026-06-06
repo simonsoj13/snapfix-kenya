@@ -35,12 +35,12 @@ function StkPushDialog({
             {isDeposit ? "Pay Deposit via M-Pesa" : "Pay Balance via M-Pesa"}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-5">
+        <div className="space-y-5 overflow-y-auto max-h-[60vh] pr-2">
           <div className="bg-green-500/10 border border-green-500/20 rounded-md p-4 text-center space-y-3">
             <p className="text-sm font-semibold text-muted-foreground">
               {isDeposit ? "Deposit Payment (30%)" : "Balance Payment"}
             </p>
-            <p className="text-3xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">KES {amount.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">
               {isDeposit ? "Securely held until job is complete" : "Final payment to close this job"}
             </p>
@@ -48,7 +48,7 @@ function StkPushDialog({
 
           <div className="bg-muted rounded-md p-4 text-center space-y-1">
             <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
-            <p className="text-4xl font-bold tracking-widest text-primary" data-testid="text-till-number">{TILL}</p>
+            <p className="text-3xl font-bold tracking-widest text-primary" data-testid="text-till-number">{TILL}</p>
             <p className="text-xs text-muted-foreground">Snap-Fix Kenya — Buy Goods</p>
           </div>
 
@@ -70,7 +70,7 @@ function StkPushDialog({
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-4">
             <Button variant="outline" className="flex-1" onClick={onClose} data-testid="button-cancel-payment">
               Cancel
             </Button>

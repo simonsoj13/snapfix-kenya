@@ -38,6 +38,7 @@ export default function BookingFlow() {
   const [offeredPrice, setOfferedPrice] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [postedJobId, setPostedJobId] = useState<string | null>(null);
+  const [depositPaid, setDepositPaid] = useState(false);
 
   const { data: pricingConfigs = [] } = useQuery<PricingConfig[]>({
     queryKey: ["/api/pricing"],
@@ -492,45 +493,68 @@ export default function BookingFlow() {
             </div>
           )}
 
-          {/* ── Step 4: Posted! ── */}
+          {/* Step 4: Pay Deposit */}
           {step === 4 && (
-            <div className="space-y-5 text-center">
-              <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-10 h-10 text-green-600" />
-              </div>
-              <div>
+            <div className="space-y-5">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
+                </div>
                 <h2 className="text-xl font-bold">Job Posted!</h2>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Your job is now live in the Snap-Fix marketplace. Qualified Fundis in your area can see it and claim it.
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">Pay deposit to confirm your booking.</p>
               </div>
-
-              <div className="bg-muted/50 rounded-xl p-4 text-sm text-left space-y-2">
+              <div className="bg-muted/50 rounded-xl p-4 text-sm space-y-1">
                 <p><span className="text-muted-foreground">Category:</span> <strong>{category}</strong></p>
                 <p><span className="text-muted-foreground">Location:</span> <strong>{jobLocation}</strong></p>
-                <p><span className="text-muted-foreground">Offered Price:</span> <strong className="text-primary">KES {Number(offeredPrice).toLocaleString()}</strong></p>
-                <p><span className="text-muted-foreground">Deposit Due:</span> <strong>KES {depositAmount.toLocaleString()}</strong> <span className="text-muted-foreground">(after Fundi accepts)</span></p>
+                <p><span className="text-muted-foreground">Total Price:</span> <strong className="text-primary">KES {Number(offeredPrice).toLocaleString()}</strong></p>
+                <p><span className="text-muted-foreground">Deposit (30%):</span> <strong className="text-green-600">KES {depositAmount.toLocaleString()}</strong></p>
               </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-md px-4 py-3 text-sm text-blue-700 dark:text-blue-400 text-left flex items-start gap-2">
-                <Banknote className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>Once a Fundi claims your job, you'll get a notification and can pay the deposit from <strong>My Requests</strong>.</span>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Button className="w-full" onClick={() => navigate("/requests")} data-testid="button-view-requests">
-                  View My Requests
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => {
-                  setStep(0); setCategory(""); setDescription(""); setArea("");
-                  setJobLocation(""); setOfferedPrice(""); setImageUrl(""); setAiCategory("");
-                }} data-testid="button-post-another">
-                  Post Another Job
-                </Button>
-              </div>
+              {!depositPaid ? (
+                <div className="space-y-3">
+                  <div className="bg-muted rounded-xl p-4 text-center space-y-1">
+                    <p className="text-xs text-muted-foreground">M-Pesa Till Number</p>
+                    <p className="text-4xl font-bold tracking-widest text-primary">324225</p>
+                    <p className="text-xs text-muted-foreground">Snap-Fix Kenya</p>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1 px-1">
+                    <p>1. Open M-Pesa on your phone</p>
+                    <p>2. Select <strong>Lipa na M-Pesa</strong></p>
+                    <p>3. Select <strong>Buy Goods and Services</strong></p>
+                    <p>4. Enter Till: <strong>324225</strong></p>
+                    <p>5. Enter amount: <strong>KES {depositAmount.toLocaleString()}</strong></p>
+                    <p>6. Enter PIN and confirm</p>
+                  </div>
+                  <Button className="w-full bg-green-600" onClick={async () => {
+                    await fetch('/api/transactions/pending', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      undefined, amount: depositAmount, type: 'deposit', phone: user.phone }),
+                    });
+                    await fetch('/api/job-requests/' + postedJobId + '/status', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'awaiting-deposit-approval' }),
+                    });
+                    setDepositPaid(true);
+                    toast({ title: 'Payment recorded!', description: 'Waiting for admin to verify...' });
+                  }} data-testid="button-confirm-deposit">
+                    <Banknote className="w-4 h-4 mr-2" /> I Have Paid
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-center space-y-2">
+                    <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="font-semibold text-yellow-700 dark:text-yellow-400">Waiting for admin to confirm payment...</p>
+                    <p className="text-xs text-muted-foreground">Once verified your fundi will be notified.</p>
+                  </div>
+                  <Button className="w-full" onClick={() => navigate('/requests')} data-testid="button-view-requests">
+                    View My Requests
+                  </Button>
+                </div>
+              )}
             </div>
           )}
-
         </CardContent>
       </Card>
     </div>
