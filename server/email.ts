@@ -1,9 +1,15 @@
-import { Resend } from "resend";
+let resendClient: InstanceType<typeof import("resend").Resend> | null = null;
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  if (!resendClient) {
+    const { Resend } = require("resend");
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 export async function sendVerificationCode(email: string, code: string, name: string) {
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: "Snap-Fix Kenya <onboarding@resend.dev>",
     to: email,
     subject: "Your Snap-Fix Verification Code",
@@ -24,7 +30,7 @@ export async function sendVerificationCode(email: string, code: string, name: st
 }
 
 export async function sendPasswordResetCode(email: string, code: string) {
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: "Snap-Fix Kenya <onboarding@resend.dev>",
     to: email,
     subject: "Password Reset Code",
