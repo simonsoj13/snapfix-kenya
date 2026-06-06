@@ -528,13 +528,9 @@ export default function BookingFlow() {
                     await fetch('/api/transactions/pending', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      undefined, amount: depositAmount, type: 'deposit', phone: user.phone }),
+                      body: JSON.stringify({ userId: user?.id, jobId: postedJobId, amount: depositAmount, type: 'deposit', phone: user?.phone }),
                     });
-                    await fetch('/api/job-requests/' + postedJobId + '/status', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ status: 'awaiting-deposit-approval' }),
-                    });
+                    // Status stays open until fundi claims the job
                     setDepositPaid(true);
                     toast({ title: 'Payment recorded!', description: 'Waiting for admin to verify...' });
                   }} data-testid="button-confirm-deposit">

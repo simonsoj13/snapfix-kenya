@@ -249,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/job-requests/marketplace", async (req, res) => {
     const all = await storage.getAllJobRequests();
-    const open = all.filter((j) => j.status === "open" && !j.workerId);
+    const open = all.filter((j) => ["open", "awaiting-deposit-approval"].includes(j.status) && !j.workerId);
     res.json(open);
   });
 

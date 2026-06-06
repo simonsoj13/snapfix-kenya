@@ -266,6 +266,7 @@ export default function RequestsPage() {
       });
       qc.invalidateQueries({ queryKey: ["/api/job-requests/user", userId] });
       setPayBalanceJob(null);
+      setRatingJob(req);
       toast({
         title: "Balance payment recorded",
         description: "Waiting for admin to confirm. Your job will be marked complete once approved.",
