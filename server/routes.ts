@@ -747,6 +747,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ success: true });
   });
 
+  // ── Landlord Bundle Enquiries ─────────────────────────────────────────────
+  const landlordEnquiries: any[] = [];
+  app.post("/api/landlord-enquiry", (req, res) => {
+    const enquiry = {
+      id: crypto.randomUUID(),
+      ...req.body,
+      submittedAt: new Date().toISOString(),
+      status: "new",
+    };
+    landlordEnquiries.push(enquiry);
+    console.log("[Landlord Enquiry]", enquiry.orgName, enquiry.contactPhone, enquiry.preferredPlan);
+    res.json({ success: true, id: enquiry.id });
+  });
+  app.get("/api/admin/landlord-enquiries", (_req, res) => {
+    res.json(landlordEnquiries.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)));
+  });
+
   // ── Real-Time Notifications (SSE) ─────────────────────────────────────────
   const sseClients = new Map<string, Response>();
 

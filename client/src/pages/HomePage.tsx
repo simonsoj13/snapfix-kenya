@@ -67,13 +67,27 @@ export default function HomePage() {
     queryKey: ["/api/reviews"],
   });
 
-  const { data: workers = [] } = useQuery<Worker[]>({
+  const { data: allWorkers = [] } = useQuery<Worker[]>({
     queryKey: ["/api/workers/search", selectedCategory],
     queryFn: () =>
       selectedCategory
         ? searchWorkers({ specialty: selectedCategory })
         : getAllWorkers(),
   });
+
+  const searchLower = searchQuery.toLowerCase().trim();
+  const filteredCategories = searchLower
+    ? categories.filter((c) => c.name.toLowerCase().includes(searchLower))
+    : categories;
+  const workers = searchLower && !selectedCategory
+    ? allWorkers.filter(
+        (w) =>
+          w.name.toLowerCase().includes(searchLower) ||
+          w.specialty.toLowerCase().includes(searchLower) ||
+          w.location.toLowerCase().includes(searchLower)
+      )
+    : allWorkers;
+  const showSearchResults = searchLower.length > 0;
 
   const toggleFilter = (f: Filter) => {
     setActiveFilters((prev) => {
@@ -177,7 +191,7 @@ export default function HomePage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/book")}
+            onClick={() => navigate("/landlord")}
             data-testid="button-landlord-bundles"
             style={{ backgroundColor: "hsl(var(--fixit-orange))", color: "hsl(var(--fixit-orange-foreground))" }}
             className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl font-semibold shadow-md hover-elevate active-elevate-2"
@@ -186,11 +200,64 @@ export default function HomePage() {
               <Package className="w-6 h-6" />
             </div>
             <span className="text-sm">Landlord Bundles</span>
-            <span className="text-xs font-normal opacity-80">Multi-repair deals</span>
+            <span className="text-xs font-normal opacity-80">For landlords &amp; orgs</span>
           </button>
         </div>
 
+        {/* ── Search results ── */}
+        {showSearchResults && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Results for "{searchQuery}"</h2>
+              <button type="button" className="text-xs text-primary flex items-center gap-1" onClick={() => setSearchQuery("")}>
+                <X className="w-3 h-3" /> Clear
+              </button>
+            </div>
+            {filteredCategories.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2 font-medium">SERVICE CATEGORIES</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {filteredCategories.map((c) => (
+                    <ServiceCategoryCard
+                      key={c.name}
+                      icon={c.icon}
+                      name={c.name}
+                      isSelected={false}
+                      onClick={() => { setSearchQuery(""); navigate("/book?category=" + encodeURIComponent(c.name)); }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {workers.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2 font-medium">FUNDIS</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {workers.slice(0, 4).map((worker) => (
+                    <WorkerCard
+                      key={worker.id}
+                      {...worker}
+                      verified={worker.verified === 1}
+                      availableNow={worker.availableNow === 1}
+                      bio={worker.bio}
+                      yearsExperience={worker.yearsExperience}
+                      onViewProfile={() => setSelectedWorker(worker)}
+                      onRequest={() => { setSearchQuery(""); navigate("/book?workerId=" + worker.id + "&category=" + worker.specialty); }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {filteredCategories.length === 0 && workers.length === 0 && (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No results found for "{searchQuery}"
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Service categories ── */}
+        {!showSearchResults && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold">Browse Services</h2>
@@ -236,6 +303,7 @@ export default function HomePage() {
             </button>
           </div>
         </div>
+        )}
 
         {/* ── Customer Reviews ── */}
         <div>

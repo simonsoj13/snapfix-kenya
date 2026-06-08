@@ -14,9 +14,67 @@ import type { JobRequest } from "@shared/schema";
 import {
   Calendar, MapPin, Wrench, Zap, Navigation, Eye, Image,
   CheckCircle2, Smartphone, Banknote, UserX, UserCheck, ClipboardCheck,
-  ArrowRight, X, Star,
+  ArrowRight, X, Star, RotateCcw,
 } from "lucide-react";
-import { useLocation } from "wouter";
+
+function timeAgo(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 2) return "Yesterday";
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-KE", { day: "numeric", month: "short" });
+}
+
+const TIMELINE_STEPS = [
+  { label: "Posted",    statuses: ["open"] },
+  { label: "Assigned",  statuses: ["pending", "awaiting-deposit-approval"] },
+  { label: "Confirmed", statuses: ["deposit-paid", "in-progress"] },
+  { label: "Working",   statuses: ["fundi-arrived", "balance-due", "balance-paid-pending"] },
+  { label: "Done",      statuses: ["completed"] },
+];
+
+function getStepIndex(status: string): number {
+  if (status === "cancelled") return -1;
+  for (let i = TIMELINE_STEPS.length - 1; i >= 0; i--) {
+    if (TIMELINE_STEPS[i].statuses.includes(status)) return i;
+  }
+  return 0;
+}
+
+function JobProgressTimeline({ status }: { status: string }) {
+  if (status === "cancelled") return null;
+  const current = getStepIndex(status);
+  return (
+    <div className="flex items-center gap-0 w-full mt-1 mb-0.5">
+      {TIMELINE_STEPS.map((step, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <div key={step.label} className="flex items-center flex-1 min-w-0">
+            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
+                done ? "bg-primary text-primary-foreground" :
+                active ? "bg-primary/20 border-2 border-primary text-primary" :
+                "bg-muted border-2 border-border text-muted-foreground"
+              }`}>
+                {done ? <CheckCircle2 className="w-3 h-3" /> : i + 1}
+              </div>
+              <span className={`text-[9px] leading-tight text-center whitespace-nowrap font-medium ${
+                active ? "text-primary" : done ? "text-primary/70" : "text-muted-foreground"
+              }`}>{step.label}</span>
+            </div>
+            {i < TIMELINE_STEPS.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1 rounded-full transition-colors ${done || active ? "bg-primary/40" : "bg-border"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 type ExtJobRequest = JobRequest & { workerOnWay?: number; estimatedArrival?: string | null };
 
@@ -358,6 +416,17 @@ export default function RequestsPage() {
               <Card key={req.id} data-testid={`card-request-${req.id}`}>
                 <CardContent className="p-6 space-y-4">
 
+                  {/* ── Progress timeline ── */}
+                  <div className="px-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground">
+                        {req.status === "completed" ? "Completed" : req.status === "cancelled" ? "Cancelled" : "In Progress"}
+                        {req.createdAt ? ` · ${timeAgo(req.createdAt)}` : ""}
+                      </span>
+                    </div>
+                    <JobProgressTimeline status={req.status} />
+                  </div>
+
                   {/* ── Seeking Fundi banner (open status) ── */}
                   {req.status === "open" && (
                     <div className="flex items-center gap-3 bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-lg px-4 py-3">
@@ -596,6 +665,19 @@ export default function RequestsPage() {
                         data-testid={`button-cancel-${req.id}`}
                       >
                         Cancel Request
+                      </Button>
+                    )}
+
+                    {/* Rebook — completed or cancelled */}
+                    {(req.status === "completed" || req.status === "cancelled") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 ml-auto"
+                        onClick={() => navigate(`/book?category=${encodeURIComponent(req.category)}`)}
+                        data-testid={`button-rebook-${req.id}`}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Book Again
                       </Button>
                     )}
                   </div>

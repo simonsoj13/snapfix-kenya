@@ -17,6 +17,7 @@ import LoginPage from "@/pages/LoginPage";
 import BookingFlow from "@/pages/BookingFlow";
 import WorkerDashboard from "@/pages/WorkerDashboard";
 import SupportPage from "@/pages/SupportPage";
+import LandlordPage from "@/pages/LandlordPage";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -67,6 +68,7 @@ function Router() {
   // ── Unauthenticated → landing page, authenticated → app ──
   if (!user) {
     if (location === "/") return <LandingPage />;
+    if (location === "/landlord") return <LandlordPage />;
     return <Redirect to="/login" />;
   }
 
@@ -108,6 +110,7 @@ function Router() {
         <Route path="/requests" component={RequestsPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/support" component={SupportPage} />
+        <Route path="/landlord" component={LandlordPage} />
         <Route path="/book" component={BookingFlow} />
         <Route component={NotFound} />
       </Switch>
