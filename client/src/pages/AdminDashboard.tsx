@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { useLocation } from "wouter";
+import { useRoute } from "wouter";
 import WorkerMapView from "@/components/WorkerMapView";
 import { Banknote } from "lucide-react";
 import JobStatusBadge from "@/components/JobStatusBadge";
@@ -103,11 +103,13 @@ function CustomerProfilesTable() {
     refetchInterval: 30000,
   });
 
-  const filtered = customers.filter(c =>
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
-  );
+  const filtered = customers
+    .filter(c =>
+      c.name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.email?.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone?.includes(search)
+    )
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
   return (
     <div className="space-y-4">
@@ -161,7 +163,8 @@ function CustomerProfilesTable() {
 }
 
 export default function AdminDashboard() {
-  const [_, navigate] = useLocation();
+  const [match, params] = useRoute("/admin");
+  const navigate = (path: string) => window.location.href = path;
   const [showProfile, setShowProfile] = useState(false);
   const [editName, setEditName] = useState("");
   const [editOldPassword, setEditOldPassword] = useState("");
@@ -328,6 +331,12 @@ export default function AdminDashboard() {
   });
 
   const openTickets = tickets.filter((t) => t.status !== "resolved").length;
+  
+  // Sort all lists by date (newest first)
+  const sortedRequests = [...requests].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  const sortedTransactions = [...transactions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sortedTickets = [...tickets].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sortedVerifications = [...verifications].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
   return (
     <div className="min-h-screen bg-background">
@@ -593,7 +602,8 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Activity className="w-4 h-4" /> All Job Requests
-                  {requests.length === 0 && <span className="text-xs font-normal text-muted-foreground ml-1">— None yet</span>}
+                  {sortedRequests.length === 0 && <span className="text-xs font-normal text-muted-foreground ml-1">— None yet</span>}
+                  <span className="text-xs font-normal text-muted-foreground ml-auto">Sorted by date (newest first)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -606,14 +616,15 @@ export default function AdminDashboard() {
                         <TableHead>Description</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Quote (KES)</TableHead>
+                        <TableHead>Date</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {requests.length === 0 ? (
-                        <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
-                      ) : requests.map((req) => (
+                      {sortedRequests.length === 0 ? (
+                        <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No job requests yet</TableCell></TableRow>
+                      ) : sortedRequests.map((req) => (
                         <TableRow key={req.id} data-testid={`row-request-${req.id}`}>
                           <TableCell>
                             {req.imageUrl ? (
@@ -643,6 +654,7 @@ export default function AdminDashboard() {
                               ? `${req.quotedMin.toLocaleString()}–${req.quotedMax.toLocaleString()}`
                               : req.quotedAmount ? req.quotedAmount.toLocaleString() : "—"}
                           </TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">{req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-KE") : "—"}</TableCell>
                           <TableCell><JobStatusBadge status={req.status as any} /></TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
@@ -701,6 +713,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <CreditCard className="w-4 h-4" /> Transaction Monitoring
                   <Badge variant="secondary" className="ml-auto">{transactions.length} total</Badge>
+                  <span className="text-xs font-normal text-muted-foreground">Sorted by date (newest first)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -720,9 +733,9 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {transactions.length === 0 ? (
+                      {sortedTransactions.length === 0 ? (
                         <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No transactions yet</TableCell></TableRow>
-                      ) : transactions.map((tx) => (
+                      ) : sortedTransactions.map((tx) => (
                         <TableRow key={tx.id} data-testid={`row-tx-${tx.id}`}>
                           <TableCell className="font-medium text-sm whitespace-nowrap">{tx.customerName}</TableCell>
                           <TableCell className="text-sm whitespace-nowrap">{tx.workerName}</TableCell>
@@ -790,6 +803,7 @@ export default function AdminDashboard() {
                       {openTickets} open
                     </Badge>
                   )}
+                  <span className="text-xs font-normal text-muted-foreground ml-auto">Sorted by date (newest first)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -807,9 +821,9 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tickets.length === 0 ? (
+                      {sortedTickets.length === 0 ? (
                         <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No support tickets</TableCell></TableRow>
-                      ) : tickets.map((ticket) => (
+                      ) : sortedTickets.map((ticket) => (
                         <TableRow key={ticket.id} data-testid={`row-ticket-${ticket.id}`}>
                           <TableCell className="font-medium text-sm whitespace-nowrap">{ticket.userName}</TableCell>
                           <TableCell>
@@ -866,12 +880,13 @@ export default function AdminDashboard() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4" /> Fundi Verification Submissions
                   <Badge variant="secondary" className="ml-auto">{verifications.length} total</Badge>
+                  <span className="text-xs font-normal text-muted-foreground ml-auto">Sorted by date (newest first)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {verifications.length === 0 ? (
+                {sortedVerifications.length === 0 ? (
                   <p className="text-center py-12 text-muted-foreground">No verification submissions yet</p>
-                ) : verifications.map((v) => (
+                ) : sortedVerifications.map((v) => (
                   <div key={v.userId} className="border rounded-lg p-4 space-y-4" data-testid={`card-verification-${v.userId}`}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div>
