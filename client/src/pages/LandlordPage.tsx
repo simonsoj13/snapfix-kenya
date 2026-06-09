@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +100,8 @@ const ORG_TYPES = [
 ];
 
 export default function LandlordPage() {
-  const [_, navigate] = useLocation();
+  const [match, params] = useRoute("/landlord");
+  const navigate = (path: string) => window.location.href = path;
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -286,7 +287,10 @@ export default function LandlordPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Button onClick={() => navigate("/")} data-testid="button-back-home-after-enquiry">
+                  <Button onClick={() => navigate("/landlord-dashboard")} data-testid="button-view-dashboard">
+                    View Dashboard
+                  </Button>
+                  <Button onClick={() => navigate("/")} variant="outline" data-testid="button-back-home-after-enquiry">
                     Back to Home
                   </Button>
                   <Button variant="outline" onClick={() => { setSubmitted(false); setOrgName(""); setNotes(""); }} data-testid="button-new-enquiry">
