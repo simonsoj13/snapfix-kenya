@@ -1,7 +1,79 @@
 import { pgTable, text, varchar, integer, real, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 
-// Landlord Subscription/Bundle
+// ── User Tables ───────────────────────────────────────��──────────────────
+
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: varchar("email").notNull().unique(),
+  phone: varchar("phone").notNull().unique(),
+  password: text("password").notNull(),
+  role: text("role").notNull().default("user"), // user, admin
+  idDocUrl: text("id_doc_url"),
+  workSampleUrls: text("work_sample_urls"), // JSON array as string
+  walletBalance: real("wallet_balance").notNull().default(0),
+  idVerified: integer("id_verified").notNull().default(0),
+  createdAt: text("created_at").default(sql`now()::text`),
+});
+
+export const workers = pgTable("workers", {
+  id: varchar("id").primaryKey(),
+  name: text("name").notNull(),
+  email: varchar("email").notNull(),
+  phone: varchar("phone").notNull(),
+  specialty: text("specialty").notNull(),
+  hourlyRate: integer("hourly_rate").notNull(),
+  rating: real("rating").notNull().default(0),
+  reviewCount: integer("review_count").notNull().default(0),
+  distance: real("distance").notNull(),
+  location: text("location").notNull(),
+  bio: text("bio"),
+  yearsExperience: integer("years_experience").notNull().default(0),
+  jobsCompleted: integer("jobs_completed").notNull().default(0),
+  responseTime: text("response_time").notNull(),
+  verified: integer("verified").notNull().default(0),
+  profileImage: text("profile_image"),
+  availableNow: integer("available_now").notNull().default(0),
+  createdAt: text("created_at").default(sql`now()::text`),
+});
+
+export const jobRequests = pgTable("job_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  imageUrl: text("image_url"),
+  location: text("location").notNull(),
+  status: text("status").notNull().default("open"), // open, pending, in-progress, completed, cancelled, deposit-paid, fundi-arrived, balance-due
+  workerId: varchar("worker_id"),
+  workerContactShown: integer("worker_contact_shown").notNull().default(0),
+  workerOnWay: integer("worker_on_way").notNull().default(0),
+  estimatedArrival: text("estimated_arrival"),
+  createdAt: text("created_at").default(sql`now()::text`),
+  updatedAt: text("updated_at").default(sql`now()::text`),
+});
+
+export const workerVerifications = pgTable("worker_verifications", {
+  userId: varchar("user_id").primaryKey(),
+  workerName: text("worker_name").notNull(),
+  email: varchar("email").notNull(),
+  phone: varchar("phone").notNull(),
+  idFront: text("id_front"),
+  idBack: text("id_back"),
+  workSamples: text("work_samples").notNull(), // JSON array as string
+  specialty: text("specialty"),
+  bio: text("bio"),
+  yearsExperience: integer("years_experience"),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  submittedAt: text("submitted_at").notNull(),
+  reviewedAt: text("reviewed_at"),
+  reviewNote: text("review_note"),
+});
+
+// ── Landlord Subscription/Bundle ──────────────────────────────────────────
+
 export const landlordBundles = pgTable("landlord_bundles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -103,3 +175,83 @@ export const bundleNotifications = pgTable("bundle_notifications", {
   
   createdAt: text("created_at").default(sql`now()::text`),
 });
+
+// ── Zod Validation Schemas ──────────────────────────────────────────────
+
+export const insertUserSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(10),
+  password: z.string().min(6),
+  role: z.enum(["user", "admin"]).default("user"),
+  idDocUrl: z.string().optional().nullable(),
+  workSampleUrls: z.string().optional().nullable(),
+});
+
+export const loginSchema = z.object({
+  credential: z.string(),
+  password: z.string(),
+});
+
+export const adminLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string(),
+});
+
+export const insertJobRequestSchema = z.object({
+  userId: z.string(),
+  category: z.string(),
+  description: z.string(),
+  imageUrl: z.string().optional(),
+  location: z.string(),
+});
+
+// ── Type Definitions ────────────────────────────────────────────────────
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Worker = typeof workers.$inferSelect;
+export type InsertWorker = Omit<Worker, "createdAt" | "id">;
+
+export type JobRequest = typeof jobRequests.$inferSelect;
+export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
+
+export type Review = {
+  id: string;
+  workerId: string;
+  userId: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+export type Transaction = {
+  id: string;
+  userId: string;
+  workerId: string;
+  jobId: string;
+  amount: number;
+  type: "deposit" | "balance" | "reversed";
+  status: "pending" | "completed" | "reversed";
+  category?: string;
+  createdAt: string;
+};
+
+export type SupportTicket = {
+  id: string;
+  userId: string;
+  category: string;
+  subject: string;
+  message: string;
+  status: "open" | "in-progress" | "resolved" | "closed";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PricingConfig = {
+  category: string;
+  baseMin: number;
+  baseMax: number;
+  depositPercent: number;
+};
