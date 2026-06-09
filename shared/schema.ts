@@ -1,154 +1,105 @@
+import { pgTable, text, varchar, integer, real, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  phone: text("phone").notNull(),
-  password: text("password").notNull(),
-  role: text("role").notNull().default("customer"), // customer | worker | admin
-  idDocUrl: text("id_doc_url"),
-  workSampleUrls: text("work_sample_urls"),
-  walletBalance: real("wallet_balance").notNull().default(0),
-  idVerified: integer("id_verified").notNull().default(0),
-});
-
-export const workers = pgTable("workers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  specialty: text("specialty").notNull(),
-  hourlyRate: integer("hourly_rate").notNull(),
-  rating: real("rating").notNull(),
-  reviewCount: integer("review_count").notNull(),
-  distance: real("distance").notNull(),
-  location: text("location").notNull(),
-  bio: text("bio").notNull(),
-  yearsExperience: integer("years_experience").notNull(),
-  jobsCompleted: integer("jobs_completed").notNull(),
-  responseTime: text("response_time").notNull(),
-  verified: integer("verified").notNull().default(0),
-  profileImage: text("profile_image").notNull(),
-  availableNow: integer("available_now").notNull().default(0),
-  phone: text("phone").notNull().default(""),
-  email: text("email").notNull().default(""),
-});
-
-export const jobRequests = pgTable("job_requests", {
+// Landlord Subscription/Bundle
+export const landlordBundles = pgTable("landlord_bundles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
-  workerId: varchar("worker_id"),
-  imageUrl: text("image_url").default(""),
-  description: text("description").notNull(),
-  category: text("category").notNull(),
-  area: text("area").notNull().default(""),
-  status: text("status").notNull(),
-  location: text("location").notNull(),
-  preferredDate: text("preferred_date"),
-  isNow: integer("is_now").notNull().default(0),
-  budget: integer("budget"),
-  quotedMin: real("quoted_min"),
-  quotedMax: real("quoted_max"),
-  quotedAmount: real("quoted_amount"),
-  depositAmount: real("deposit_amount"),
-  workerContactShown: integer("worker_contact_shown").notNull().default(0),
-  workerOnWay: integer("worker_on_way").notNull().default(0),
-  estimatedArrival: text("estimated_arrival"),
+  orgName: text("org_name").notNull(),
+  orgType: text("org_type").notNull(), // landlord, agency, school, hospital, etc.
+  planType: text("plan_type").notNull(), // starter, professional, enterprise
+  units: integer("units").notNull(),
+  
+  monthlyJobQuota: integer("monthly_job_quota").notNull(), // 10, 40, unlimited
+  monthlyPrice: real("monthly_price").notNull(),
+  
+  status: text("status").notNull().default("active"), // active, paused, expired, cancelled
+  startDate: text("start_date").notNull(),
+  renewalDate: text("renewal_date").notNull(),
+  autoRenew: boolean("auto_renew").notNull().default(true),
+  
+  accountManagerId: varchar("account_manager_id"), // admin user ID
+  
+  createdAt: text("created_at").default(sql`now()::text`),
+  updatedAt: text("updated_at").default(sql`now()::text`),
+});
+
+// Properties under a landlord bundle
+export const bundleProperties = pgTable("bundle_properties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bundleId: varchar("bundle_id").notNull(),
+  propertyName: text("property_name").notNull(),
+  address: text("address").notNull(),
+  units: integer("units").notNull(),
+  notes: text("notes"),
   createdAt: text("created_at").default(sql`now()::text`),
 });
 
-// ── Reviews ───────────────────────────────────────────────────────────────────
-export interface Review {
-  id: string;
-  userId: string;
-  workerId: string;
-  rating: number;
-  comment: string;
-  customerName: string;
-  jobCategory: string;
-  createdAt: string;
-}
-
-// ── Transactions ──────────────────────────────────────────────────────────────
-export interface Transaction {
-  id: string;
-  userId: string;
-  workerId: string;
-  jobId: string;
-  amount: number;
-  type: "deposit" | "balance" | "reversal";
-  status: "completed" | "reversed" | "pending";
-  phone: string;
-  mpesaRef: string;
-  customerName: string;
-  workerName: string;
-  category: string;
-  createdAt: string;
-}
-
-// ── Support Tickets ───────────────────────────────────────────────────────────
-export interface SupportTicket {
-  id: string;
-  userId: string;
-  userName: string;
-  userRole: string;
-  subject: string;
-  message: string;
-  status: "open" | "in-progress" | "resolved";
-  priority: "low" | "medium" | "high";
-  createdAt: string;
-  response?: string;
-}
-
-// ── Pricing Config ────────────────────────────────────────────────────────────
-export interface PricingConfig {
-  category: string;
-  baseMin: number;
-  baseMax: number;
-  depositPercent: number;
-}
-
-// ── Insert schemas ────────────────────────────────────────────────────────────
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  walletBalance: true,
-  idVerified: true,
-});
-export const loginSchema = z.object({
-  credential: z.string().min(1),
-  password: z.string().min(1),
-});
-export const adminLoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+// Bundle-specific job requests (scheduled maintenance)
+export const bundleJobRequests = pgTable("bundle_job_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bundleId: varchar("bundle_id").notNull(),
+  propertyId: varchar("property_id").notNull(),
+  
+  category: text("category").notNull(), // Plumbing, Electrical, etc.
+  description: text("description").notNull(),
+  priority: text("priority").notNull(), // urgent, high, normal, low
+  
+  status: text("status").notNull().default("scheduled"), // scheduled, assigned, in-progress, completed, cancelled
+  
+  // Scheduling
+  scheduledDate: text("scheduled_date"), // When customer wants it done
+  preferredTime: text("preferred_time"), // morning, afternoon, evening
+  
+  // Assignment
+  assignedWorkerId: varchar("assigned_worker_id"),
+  assignedWorkerName: text("assigned_worker_name"),
+  
+  // Completion tracking
+  completedDate: text("completed_date"),
+  completedBy: text("completed_by"), // worker name / notes
+  rating: integer("rating"), // 1-5 stars after completion
+  feedback: text("feedback"),
+  
+  // Cost
+  estimatedCost: real("estimated_cost"),
+  actualCost: real("actual_cost"),
+  
+  // Photos
+  beforePhoto: text("before_photo"),
+  afterPhoto: text("after_photo"),
+  
+  createdAt: text("created_at").default(sql`now()::text`),
 });
 
-export const insertWorkerSchema = createInsertSchema(workers).omit({ id: true });
-export const insertJobRequestSchema = createInsertSchema(jobRequests).omit({ id: true });
+// Bundle usage tracking (for monthly quotas)
+export const bundleUsageTracking = pgTable("bundle_usage_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bundleId: varchar("bundle_id").notNull(),
+  billingMonth: text("billing_month").notNull(), // YYYY-MM format
+  
+  jobsScheduled: integer("jobs_scheduled").notNull().default(0),
+  jobsCompleted: integer("jobs_completed").notNull().default(0),
+  jobsCancelled: integer("jobs_cancelled").notNull().default(0),
+  jobsInProgress: integer("jobs_in_progress").notNull().default(0),
+  
+  totalSpent: real("total_spent").notNull().default(0),
+  
+  createdAt: text("created_at").default(sql`now()::text`),
+  updatedAt: text("updated_at").default(sql`now()::text`),
+});
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-export type Worker = typeof workers.$inferSelect;
-export type InsertWorker = z.infer<typeof insertWorkerSchema>;
-export type JobRequest = typeof jobRequests.$inferSelect;
-export type InsertJobRequest = z.infer<typeof insertJobRequestSchema>;
-
-export const workerVerifications = pgTable("worker_verifications", {
-  userId: varchar("user_id").primaryKey(),
-  workerName: text("worker_name").notNull(),
-  email: text("email").notNull(),
-  phone: text("phone").notNull(),
-  idFront: text("id_front"),
-  idBack: text("id_back"),
-  workSamples: text("work_samples").notNull().default("[]"),
-  specialty: text("specialty"),
-  bio: text("bio"),
-  yearsExperience: integer("years_experience"),
-  status: text("status").notNull().default("open"),
-  submittedAt: text("submitted_at").notNull(),
-  reviewedAt: text("reviewed_at"),
-  reviewNote: text("review_note"),
+// Bundle notifications/messages
+export const bundleNotifications = pgTable("bundle_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bundleId: varchar("bundle_id").notNull(),
+  jobRequestId: varchar("job_request_id"),
+  
+  type: text("type").notNull(), // job_assigned, job_completed, job_scheduled, quota_warning, renewal_reminder
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  
+  isRead: boolean("is_read").notNull().default(false),
+  
+  createdAt: text("created_at").default(sql`now()::text`),
 });
