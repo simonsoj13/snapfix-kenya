@@ -16,6 +16,7 @@ import {
   CheckCircle2, Smartphone, Banknote, UserX, UserCheck, ClipboardCheck,
   ArrowRight, X, Star, RotateCcw,
 } from "lucide-react";
+import { useRoute } from "wouter";
 
 function timeAgo(dateStr?: string | null): string {
   if (!dateStr) return "";
@@ -190,12 +191,13 @@ function WorkSamplesSection({ workerId }: { workerId: string }) {
   );
 }
 
-/* ── Main Page ────────────────────────────────────────────────────────── */
+/* ── Main Page ──────────────────────────────────────────────────────── */
 export default function RequestsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [_, navigate] = useLocation();
+  const [match, params] = useRoute("/requests");
+  const navigate = (path: string) => window.location.href = path;
   const userId = user?.id ?? "";
 
   const [payBalanceJob, setPayBalanceJob] = useState<ExtJobRequest | null>(null);
